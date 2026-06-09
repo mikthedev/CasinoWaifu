@@ -2,82 +2,231 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#080a12" />
-    <title>Yuki · Roulette Companion</title>
+    <title>Lucky Casino · Yuki Companion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/game.css" />
     <link rel="stylesheet" href="css/widget.css" />
   </head>
   <body class="casino-mode">
+
     <div class="desktop-note">
       <div class="phone-icon">📱</div>
-      <h2>Lucky Spin + Yuki</h2>
-      <p>Yuki sits above the bet controls — 🔊 on her left, Hide on her right.</p>
+      <h2>Lucky Casino</h2>
+      <p>4 games · Yuki AI companion · Inworld voice</p>
       <p class="desktop-link"><a href="companion.html">Talk with Yuki only →</a></p>
     </div>
 
     <div class="device-frame">
       <main class="phone">
-        <section class="game" aria-label="Roulette game">
-          <header class="app-bar">
-            <div class="app-bar-left">
-              <span class="app-logo">✦</span>
-              <span class="app-title">Lucky Spin</span>
-            </div>
-            <div class="wallet-pill">
-              <span class="wallet-icon">◉</span>
-              <span id="balance">1,000</span>
-            </div>
-          </header>
 
-          <div class="wheel-stage">
-            <div class="wheel-pointer"></div>
-            <div class="wheel-frame">
-              <div class="wheel" id="wheel"></div>
-              <div class="wheel-hub">
-                <div class="result idle" id="result">?</div>
+        <!-- ── shared top bar ───────────────────────────────────────────── -->
+        <header class="casino-bar">
+          <div class="casino-bar-left">
+            <span class="app-logo">✦</span>
+            <span class="app-title">Lucky Casino</span>
+          </div>
+          <div class="wallet-pill">
+            <span class="wallet-icon">◉</span>
+            <span id="balance">1,000</span>
+          </div>
+        </header>
+
+        <!-- ── game screens ──────────────────────────────────────────────── -->
+        <div class="game-screens">
+
+          <!-- ── ROULETTE ─────────────────────────────────────────── -->
+          <section class="game-screen" data-screen="roulette" aria-label="Roulette">
+            <div class="screen-inner">
+              <div class="wheel-stage">
+                <div class="wheel-pointer"></div>
+                <div class="wheel-frame">
+                  <div class="wheel" id="wheel"></div>
+                  <div class="wheel-hub">
+                    <div class="result idle" id="result">?</div>
+                  </div>
+                </div>
+                <p class="result-label" id="result-label">Place your bet</p>
+                <div class="history" id="history" aria-label="Recent results"></div>
+              </div>
+
+              <!-- Yuki sits between wheel and controls -->
+              <div class="yuki-slot yuki-slot--bar" data-game="roulette"></div>
+
+              <div class="controls-sheet">
+                <div class="seg-control bet-types">
+                  <button class="seg-btn red active" data-bet="red">Red</button>
+                  <button class="seg-btn black" data-bet="black">Black</button>
+                  <button class="seg-btn number" data-bet="number">#</button>
+                </div>
+                <div class="number-wrap" id="number-wrap">
+                  <input id="bet-number" type="number" min="0" max="36" value="7" inputmode="numeric" aria-label="Bet number" />
+                  <span class="hint">35× payout</span>
+                </div>
+                <div class="chip-row chips">
+                  <button class="chip-pill" data-chip="10">10</button>
+                  <button class="chip-pill active" data-chip="25">25</button>
+                  <button class="chip-pill" data-chip="50">50</button>
+                  <button class="chip-pill" data-chip="100">100</button>
+                </div>
+                <div class="spin-area">
+                  <button class="action-btn" id="spin-btn">
+                    <span>SPIN</span>
+                  </button>
+                </div>
               </div>
             </div>
-            <p class="result-label" id="result-label">Place your bet</p>
-            <div class="history" id="history" aria-label="Recent results"></div>
-          </div>
+          </section>
 
-          <div id="yuki-widget" class="yuki-bar" aria-label="Yuki companion"></div>
+          <!-- ── BLACKJACK ─────────────────────────────────────────── -->
+          <section class="game-screen" data-screen="blackjack" aria-label="Blackjack">
+            <div class="screen-inner bj-screen">
 
-          <div class="controls-sheet">
-            <div class="seg-control bet-types">
-              <button class="seg-btn red active" data-bet="red">Red</button>
-              <button class="seg-btn black" data-bet="black">Black</button>
-              <button class="seg-btn number" data-bet="number">#</button>
+              <div class="bj-table">
+                <div class="bj-side">
+                  <div class="bj-label">Dealer</div>
+                  <div class="bj-score" id="bj-dealer-score">—</div>
+                  <div class="bj-cards" id="bj-dealer-cards"></div>
+                </div>
+
+                <div class="bj-divider"></div>
+
+                <div class="bj-side">
+                  <div class="bj-label">You</div>
+                  <div class="bj-score" id="bj-player-score">—</div>
+                  <div class="bj-cards" id="bj-player-cards"></div>
+                </div>
+              </div>
+
+              <div class="bj-message" id="bj-message"></div>
+
+              <!-- Yuki watches from the right side of the table -->
+              <div class="yuki-slot yuki-slot--bar" data-game="blackjack"></div>
+
+              <div class="controls-sheet bj-controls">
+                <div class="chip-row chips bj-chips">
+                  <button class="chip-pill" data-chip="10">10</button>
+                  <button class="chip-pill active" data-chip="25">25</button>
+                  <button class="chip-pill" data-chip="50">50</button>
+                  <button class="chip-pill" data-chip="100">100</button>
+                </div>
+                <div class="bj-btn-row" id="bj-btn-row">
+                  <button class="action-btn bj-action" id="bj-deal-btn">DEAL</button>
+                </div>
+              </div>
+
             </div>
+          </section>
 
-            <div class="number-wrap" id="number-wrap">
-              <input id="bet-number" type="number" min="0" max="36" value="7" inputmode="numeric" aria-label="Bet number" />
-              <span class="hint">35× payout</span>
-            </div>
+          <!-- ── CRASH ─────────────────────────────────────────────── -->
+          <section class="game-screen" data-screen="crash" aria-label="Crash">
+            <div class="screen-inner crash-screen">
 
-            <div class="chip-row chips">
-              <button class="chip-pill" data-chip="10">10</button>
-              <button class="chip-pill active" data-chip="25">25</button>
-              <button class="chip-pill" data-chip="50">50</button>
-              <button class="chip-pill" data-chip="100">100</button>
-            </div>
+              <div class="crash-graph-wrap">
+                <canvas id="crash-canvas" class="crash-canvas"></canvas>
+                <div class="crash-multiplier" id="crash-multiplier">1.00×</div>
+                <div class="crash-status" id="crash-status">Place your bet</div>
+              </div>
 
-            <div class="spin-area">
-              <button class="spin-btn" id="spin-btn">
-                <span class="spin-label">Spin</span>
-              </button>
+              <!-- Yuki at bottom of graph area -->
+              <div class="yuki-slot yuki-slot--bar" data-game="crash"></div>
+
+              <div class="controls-sheet crash-controls">
+                <div class="crash-bet-row">
+                  <div class="crash-bet-group">
+                    <span class="crash-bet-label">Bet</span>
+                    <div class="chip-row chips crash-chips">
+                      <button class="chip-pill" data-chip="10">10</button>
+                      <button class="chip-pill active" data-chip="25">25</button>
+                      <button class="chip-pill" data-chip="50">50</button>
+                      <button class="chip-pill" data-chip="100">100</button>
+                    </div>
+                  </div>
+                  <div class="crash-auto-group">
+                    <span class="crash-bet-label">Auto-out</span>
+                    <input id="crash-auto-input" type="number" min="1.1" max="100" step="0.1" value="2.0" class="crash-auto-input" />
+                  </div>
+                </div>
+                <div class="crash-btn-row">
+                  <button class="action-btn crash-action" id="crash-btn">BET</button>
+                  <button class="action-btn crash-cashout secondary" id="crash-cashout-btn" disabled>CASH OUT</button>
+                </div>
+              </div>
+
             </div>
-          </div>
-        </section>
+          </section>
+
+          <!-- ── SLOTS ─────────────────────────────────────────────── -->
+          <section class="game-screen" data-screen="slots" aria-label="Slots">
+            <div class="screen-inner slots-screen">
+
+              <div class="slots-machine">
+                <div class="slots-title">Lucky Reels</div>
+                <div class="slots-reels-wrap">
+                  <div class="slots-payline-marker"></div>
+                  <div class="slots-reels" id="slots-reels">
+                    <div class="slots-reel" id="reel-0">
+                      <div class="reel-strip" id="strip-0"></div>
+                    </div>
+                    <div class="slots-reel" id="reel-1">
+                      <div class="reel-strip" id="strip-1"></div>
+                    </div>
+                    <div class="slots-reel" id="reel-2">
+                      <div class="reel-strip" id="strip-2"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="slots-result" id="slots-result"></div>
+              </div>
+
+              <!-- Yuki above the spin button -->
+              <div class="yuki-slot yuki-slot--bar" data-game="slots"></div>
+
+              <div class="controls-sheet slots-controls">
+                <div class="chip-row chips slots-chips">
+                  <button class="chip-pill" data-chip="10">10</button>
+                  <button class="chip-pill active" data-chip="25">25</button>
+                  <button class="chip-pill" data-chip="50">50</button>
+                  <button class="chip-pill" data-chip="100">100</button>
+                </div>
+                <div class="spin-area">
+                  <button class="action-btn" id="slots-spin-btn">SPIN</button>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
+        </div><!-- /game-screens -->
+
+        <!-- ── bottom nav ──────────────────────────────────────────────── -->
+        <nav class="game-nav" aria-label="Games">
+          <button class="nav-btn active" data-goto="roulette">
+            <span class="nav-icon">🎡</span>
+            <span class="nav-label">Roulette</span>
+          </button>
+          <button class="nav-btn" data-goto="blackjack">
+            <span class="nav-icon">🃏</span>
+            <span class="nav-label">Blackjack</span>
+          </button>
+          <button class="nav-btn" data-goto="crash">
+            <span class="nav-icon">📈</span>
+            <span class="nav-label">Crash</span>
+          </button>
+          <button class="nav-btn" data-goto="slots">
+            <span class="nav-icon">🎰</span>
+            <span class="nav-label">Slots</span>
+          </button>
+        </nav>
+
       </main>
-    </div>
+    </div><!-- /device-frame -->
+
+    <!-- Yuki widget — casino.js moves it into the active yuki-slot -->
+    <div id="yuki-widget" class="yuki-bar" aria-label="Yuki companion"></div>
 
     <script src="js/runtime.js"></script>
     <script src="js/config.js"></script>
@@ -86,7 +235,11 @@
     <script src="js/character.js"></script>
     <script src="js/sessionConfig.js"></script>
     <script src="js/voice.js"></script>
-    <script src="js/roulette.js"></script>
     <script src="js/widget.js"></script>
+    <script src="js/casino.js"></script>
+    <script src="js/roulette.js"></script>
+    <script src="js/blackjack.js"></script>
+    <script src="js/crash.js"></script>
+    <script src="js/slots.js"></script>
   </body>
 </html>

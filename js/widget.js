@@ -297,8 +297,15 @@
   }
 
   function eventClass(type) {
-    const map = { WIN: "win", BIG_WIN: "big_win", LOSE: "lose", IDLE: "idle", TALK: "talk" };
-    return map[type] || "info";
+    const wins = new Set(["WIN","BIG_WIN","BJ_WIN","BLACKJACK","CRASH_WIN","SLOTS_WIN"]);
+    const jacks= new Set(["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"]);
+    const loses= new Set(["LOSE","BJ_LOSE","BUST","CRASH_LOSE","SLOTS_LOSE"]);
+    if (type === "TALK") return "talk";
+    if (jacks.has(type))  return "big_win";
+    if (wins.has(type))   return "win";
+    if (loses.has(type))  return "lose";
+    if (type === "HIGH")  return "win";
+    return "info";
   }
 
   function showReaction(reaction, eventType, payload = {}) {
@@ -324,11 +331,13 @@
     } else if (isCompanion) {
       toast(reaction.line, eventClass(eventType), 3500);
     } else if (eventType !== "IDLE" && !voiceReacted) {
-      toast(reaction.line, eventClass(eventType), eventType === "BIG_WIN" ? 3200 : 2600);
+      const bigEvent = ["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"].includes(eventType);
+      toast(reaction.line, eventClass(eventType), bigEvent ? 3600 : 2600);
     }
 
     if (!isHidden && eventType !== "IDLE") nudge();
-    if (eventType === "BIG_WIN" && !isHidden) burstConfetti();
+    const bigEvents = ["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"];
+    if (bigEvents.includes(eventType) && !isHidden) burstConfetti();
 
     setTimeout(() => {
       if (inGameReaction()) return;
@@ -344,10 +353,43 @@
 
   function wireEvents() {
     if (!isCompanion) {
+      // Roulette
       bus.onRoulette(({ type, payload }) => {
         if (window.CharacterMemory) window.CharacterMemory.recordOutcome(type, payload);
         const reaction = window.Character.reactToOutcome(type, payload);
         showReaction(reaction, type, payload);
+      });
+
+      // Blackjack
+      bus.on("blackjack:event", ({ type, payload }) => {
+        const key = type === "WIN" ? "BJ_WIN" : type === "LOSE" ? "BJ_LOSE" : type;
+        const reaction = window.Character.reactToOutcome(key);
+        showReaction(reaction, key, payload);
+      });
+
+      // Crash
+      bus.on("crash:event", ({ type, payload }) => {
+        const key = type === "WIN" ? "CRASH_WIN" : type === "LOSE" ? "CRASH_LOSE" : type;
+        const reaction = window.Character.reactToOutcome(key);
+        showReaction(reaction, key, payload);
+      });
+
+      // Slots
+      bus.on("slots:event", ({ type, payload }) => {
+        const key = type === "JACKPOT" ? "SLOTS_JACKPOT" : type === "WIN" ? "SLOTS_WIN" : "SLOTS_LOSE";
+        const reaction = window.Character.reactToOutcome(key);
+        showReaction(reaction, key, payload);
+      });
+
+      // Game switch — greet on arrival
+      bus.on("casino:game", ({ game }) => {
+        const greets = {
+          roulette:  () => showReaction({ emotion: E.HAPPY,    line: "Let's spin~" },   "IDLE", {}),
+          blackjack: () => showReaction({ emotion: E.THINKING, line: "Blackjack!" },    "IDLE", {}),
+          crash:     () => showReaction({ emotion: E.EXCITED,  line: "Don't crash!" },  "IDLE", {}),
+          slots:     () => showReaction({ emotion: E.HAPPY,    line: "Lucky reels~" },  "IDLE", {}),
+        };
+        if (greets[game]) greets[game]();
       });
     }
 

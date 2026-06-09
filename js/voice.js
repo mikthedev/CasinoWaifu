@@ -488,12 +488,27 @@
   function notifyGameEvent(type, payload = {}) {
     if (!ws || ws.readyState !== WebSocket.OPEN || !sessionReady) return;
     const lines = {
-      WIN: `System: The player just won a roulette spin (+${payload.amount || "?"} credits, ${payload.color} ${payload.number}).`,
-      LOSE: `System: The player just lost a roulette spin (-${payload.amount || "?"} credits, ${payload.color} ${payload.number}).`,
-      BIG_WIN: `System: The player just hit a BIG WIN on roulette (+${payload.amount || "?"} credits, number ${payload.number})!`,
-      IDLE: `System: The player has been quiet at the roulette table for a while.`,
+      // Roulette
+      WIN:          `System: Roulette — player won +${payload.amount || "?"} credits (${payload.color} ${payload.number}).`,
+      LOSE:         `System: Roulette — player lost ${payload.amount || "?"} credits (${payload.color} ${payload.number}).`,
+      BIG_WIN:      `System: Roulette — player hit a BIG WIN! +${payload.amount || "?"} credits on number ${payload.number}.`,
+      IDLE:         `System: The player is idle at the casino.`,
+      // Blackjack
+      BJ_WIN:       `System: Blackjack — player won +${payload.net || "?"} credits.`,
+      BLACKJACK:    `System: Blackjack — player got a Blackjack! +${payload.net || "?"} credits.`,
+      BJ_LOSE:      `System: Blackjack — player lost to the dealer.`,
+      BUST:         `System: Blackjack — player busted (over 21).`,
+      PUSH:         `System: Blackjack — push, tie with dealer.`,
+      // Crash
+      CRASH_WIN:    `System: Crash — player cashed out at ${payload.multiplier || "?"}×! +${payload.net || "?"} credits.`,
+      CRASH_LOSE:   `System: Crash — game crashed at ${payload.crashAt || "?"}×, player lost ${payload.chip || "?"} credits.`,
+      HIGH:         `System: Crash — multiplier at ${payload.multiplier || "?"}×, player is still in!`,
+      // Slots
+      SLOTS_WIN:    `System: Slots — player won +${payload.net || "?"} credits!`,
+      SLOTS_JACKPOT:`System: Slots — JACKPOT! Player won +${payload.net || "?"} credits!`,
+      SLOTS_LOSE:   `System: Slots — player didn't match.`,
     };
-    const text = lines[type] || `System: Roulette event ${type}.`;
+    const text = lines[type] || `System: Casino event ${type}.`;
     ws.send(
       JSON.stringify({
         type: "conversation.item.create",
@@ -524,9 +539,24 @@
     userSpeaking = false;
 
     const prompts = {
-      WIN: `[Roulette win! +${payload.amount} credits on ${payload.color} ${payload.number}. React out loud — brief, happy, hyped!]`,
-      LOSE: `[Roulette loss — lost ${payload.amount} credits. React supportively out loud — brief, warm, no criticism.]`,
-      BIG_WIN: `[BIG WIN!! +${payload.amount} credits on number ${payload.number}! Celebrate out loud — super excited!]`,
+      // Roulette
+      WIN:          `[Roulette win! +${payload.amount} credits on ${payload.color} ${payload.number}. Brief happy hype!]`,
+      LOSE:         `[Roulette loss — lost ${payload.amount}. Brief supportive reaction, warm, no criticism.]`,
+      BIG_WIN:      `[BIG ROULETTE WIN!! +${payload.amount} on number ${payload.number}! Super excited celebration!]`,
+      // Blackjack
+      BJ_WIN:       `[Blackjack win! Player beat the dealer. Brief happy cheer!]`,
+      BLACKJACK:    `[BLACKJACK!! Perfect 21 on the deal! Extremely excited!]`,
+      BJ_LOSE:      `[Blackjack loss, dealer won. Brief sympathetic support.]`,
+      BUST:         `[Player busted in Blackjack — over 21! Brief sympathetic reaction.]`,
+      PUSH:         `[Blackjack push — tied with dealer. Mildly relieved reaction.]`,
+      // Crash
+      CRASH_WIN:    `[Player cashed out of Crash at ${payload.multiplier}×! Nice profit! Happy reaction.]`,
+      CRASH_LOSE:   `[Crash game crashed at ${payload.crashAt}×! Player lost. Brief sad/funny reaction.]`,
+      HIGH:         `[Crash multiplier at ${payload.multiplier}×! Getting exciting! Encouraging reaction!]`,
+      // Slots
+      SLOTS_WIN:    `[Slots win! Brief happy cheer!]`,
+      SLOTS_JACKPOT:`[SLOTS JACKPOT!! Triple match! Absolute explosion of excitement!]`,
+      SLOTS_LOSE:   `[Slots no match. Brief encouraging spin-again reaction.]`,
     };
     const text = prompts[type];
     if (!text) return false;

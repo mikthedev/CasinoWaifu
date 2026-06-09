@@ -354,6 +354,24 @@ body.casino-mode {
 /* ═══════════════════════════════════════════════════════════════════════════
    ROULETTE
    ═══════════════════════════════════════════════════════════════════════════ */
+.roulette-screen {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  padding-bottom: 4px;
+}
+
+.roulette-screen .wheel-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 4px 0 2px;
+}
+
 .wheel-stage {
   position: relative;
   display: flex;
@@ -367,7 +385,7 @@ body.casino-mode {
 
 .wheel-pointer {
   position: absolute;
-  top: 2px;
+  top: -2px;
   left: 50%;
   width: 16px;
   height: 16px;
@@ -382,10 +400,15 @@ body.casino-mode {
   position: relative;
   width: min(72vw, 260px);
   aspect-ratio: 1;
+  flex-shrink: 0;
   border-radius: 50%;
   padding: 8px;
   background: linear-gradient(145deg, rgba(255,255,255,0.14), rgba(255,255,255,0.03));
   box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+
+.roulette-screen .wheel-frame {
+  width: min(76vw, 280px);
 }
 
 .wheel {
@@ -440,9 +463,30 @@ body.casino-mode {
 .result.spinning { color: var(--accent); animation: hubPulse 0.7s ease-in-out infinite; }
 @keyframes hubPulse { 50% { transform: scale(0.9); opacity: 0.65; } }
 
-.result-label { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.result-label { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; }
 
-.history { display: flex; gap: 5px; min-height: 20px; flex-wrap: wrap; justify-content: center; }
+.history {
+  display: flex;
+  gap: 5px;
+  min-height: 20px;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  justify-content: flex-start;
+  padding: 0 4px;
+  scrollbar-width: none;
+}
+.history::-webkit-scrollbar { display: none; }
+
+.roulette-screen .controls-sheet {
+  gap: 5px;
+  padding: 9px 11px;
+}
+
+.roulette-screen .yuki-slot--bar {
+  min-height: clamp(58px, 9.5vh, 80px);
+  max-height: clamp(58px, 9.5vh, 80px);
+}
 
 .chip-dot {
   width: 22px;
@@ -877,6 +921,53 @@ body.casino-mode {
   .wallet-pill { padding: 6px 12px; font-size: 14px; }
 
   .screen-inner { padding: 6px 10px 4px; gap: 4px; }
+
+  .roulette-screen {
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    gap: 5px;
+    padding: 4px 8px 2px;
+  }
+
+  .roulette-screen .wheel-stage {
+    justify-content: center;
+    gap: 5px;
+    padding-top: 6px;
+  }
+
+  .roulette-screen .wheel-pointer {
+    top: -1px;
+    width: 14px;
+    height: 14px;
+  }
+
+  .roulette-screen .wheel-frame {
+    width: min(82vw, 42dvh, 300px);
+    padding: 7px;
+  }
+
+  .roulette-screen .wheel-num { font-size: 8px; }
+  .roulette-screen .wheel-hub { width: 34%; height: 34%; }
+  .roulette-screen .result { font-size: clamp(22px, 7vw, 30px); }
+  .roulette-screen .result-label { font-size: 11px; line-height: 1.2; }
+  .roulette-screen .history { min-height: 18px; gap: 4px; }
+  .roulette-screen .chip-dot { width: 20px; height: 20px; font-size: 9px; }
+
+  .roulette-screen .yuki-slot--bar {
+    min-height: clamp(52px, 8.5vh, 68px);
+    max-height: clamp(52px, 8.5vh, 68px);
+  }
+
+  .roulette-screen .controls-sheet {
+    padding: 7px 9px;
+    gap: 4px;
+  }
+
+  .roulette-screen .seg-btn { padding: 8px 6px; font-size: 12px; }
+  .roulette-screen .chip-pill { padding: 7px 2px; font-size: 11px; }
+  .roulette-screen .action-btn { padding: 11px; font-size: 14px; }
+  .roulette-screen .number-wrap input { padding: 8px 10px; font-size: 15px; }
+  .roulette-screen .number-wrap .hint { font-size: 11px; }
+
   .controls-sheet { padding: 8px 10px; gap: 5px; }
   .chip-pill { padding: 8px 2px; font-size: 12px; }
   .action-btn { padding: 12px; font-size: 14px; }
@@ -899,6 +990,22 @@ body.casino-mode {
   .nav-icon { font-size: 18px; }
   .nav-label { font-size: 9px; }
   .game-nav { height: var(--nav-h); }
+}
+
+/* Short phones — keep wheel readable without crushing controls */
+@media (max-width: 480px) and (max-height: 700px) {
+  .roulette-screen .wheel-frame {
+    width: min(78vw, 36dvh, 260px);
+  }
+
+  .roulette-screen .yuki-slot--bar {
+    min-height: 48px;
+    max-height: 48px;
+  }
+
+  .roulette-screen .controls-sheet { padding: 6px 8px; }
+  .roulette-screen .seg-btn { padding: 7px 5px; }
+  .roulette-screen .action-btn { padding: 10px; }
 }
 
 /* ── desktop preview ─────────────────────────────────────────────────────── */

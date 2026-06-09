@@ -42,15 +42,17 @@
           <section class="game-screen" data-screen="roulette" aria-label="Roulette">
             <div class="screen-inner roulette-screen">
               <div class="wheel-stage">
-                <div class="wheel-frame">
-                  <div class="wheel-pointer"></div>
-                  <div class="wheel" id="wheel"></div>
-                  <div class="wheel-hub">
-                    <div class="result idle" id="result">?</div>
+                <div class="wheel-visual">
+                  <div class="wheel-frame">
+                    <div class="wheel-pointer"></div>
+                    <div class="wheel" id="wheel"></div>
+                    <div class="wheel-hub">
+                      <div class="result idle" id="result">?</div>
+                    </div>
                   </div>
+                  <p class="result-label" id="result-label">Place your bet</p>
+                  <div class="history" id="history" aria-label="Recent results"></div>
                 </div>
-                <p class="result-label" id="result-label">Place your bet</p>
-                <div class="history" id="history" aria-label="Recent results"></div>
               </div>
 
               <!-- Yuki sits between wheel and controls -->

@@ -160,15 +160,14 @@
 
     try {
       await window.Voice.ensureRuntimeConfig();
-      const rt = window.YUKI_RUNTIME || {};
-      // WebRTC: connect on tap only (needs mic gesture). WS proxy: pre-connect session.
-      if (rt.mode !== "webrtc") {
-        await window.Voice.ensureSession();
-      }
+      window.Voice.warmSession().catch((err) => {
+        console.warn("[Widget] voice warm failed:", err);
+        scheduleReconnect();
+      });
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
-      if (ui.charWrap) ui.charWrap.title = "Tap Yuki & allow mic to talk";
+      if (ui.charWrap) ui.charWrap.title = "Tap Yuki to speak";
     } catch (err) {
       console.warn("[Widget] voice init failed:", err);
       scheduleReconnect();
@@ -188,15 +187,13 @@
   async function onCharTap() {
     if (isHidden || userMuted || connecting) return;
     connecting = true;
-    setEmotion(E.THINKING);
+    setEmotion(E.LISTENING);
     try {
       await window.Voice.ensureRuntimeConfig();
       await window.Voice.startSession();
       micEnabled = true;
       voiceActive = true;
-      if (ui.charWrap) ui.charWrap.title = "Talking with Yuki — tap mute to pause";
-      setEmotion(E.LISTENING);
-      toast("Mic on — speak to Yuki!", "info", 2500);
+      if (ui.charWrap) ui.charWrap.title = "Talking with Yuki";
     } catch (err) {
       console.warn("[Widget] char tap voice failed:", err);
       setEmotion(E.WORRIED);
@@ -459,7 +456,7 @@
     }
 
     bus.on("voice:connecting", () => {
-      if (!isHidden && !inGameReaction()) setEmotion(E.THINKING);
+      if (connecting && !isHidden && !inGameReaction()) setEmotion(E.THINKING);
     });
 
     bus.on("voice:ready", () => {
@@ -467,6 +464,7 @@
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
+      if (ui.charWrap && !micEnabled) ui.charWrap.title = "Tap Yuki to speak";
       if (micEnabled && !isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
@@ -544,6 +542,7 @@
 
     bus.on("voice:mic:streaming", () => {
       micEnabled = true;
+      connecting = false;
       if (!isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
   }

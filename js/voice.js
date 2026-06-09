@@ -42,6 +42,8 @@
   let levelRAF = null;
   let agentSpeaking = false;
   let userSpeaking = false;
+  let audioUnlocked = false;
+  let greetingSent = false;
 
   // Scheduled playback nodes for interrupt support
   let scheduledSources = [];
@@ -49,9 +51,16 @@
 
   const emit = (name, data) => bus && bus.emit(name, data);
 
+  function backendWsUrl(base) {
+    if (!base) return null;
+    const wsBase = base.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:").replace(/\/$/, "");
+    return `${wsBase}/realtime`;
+  }
+
   function wsUrl() {
-    const runtimeWs = window.YUKI_RUNTIME && window.YUKI_RUNTIME.wsUrl;
-    if (runtimeWs) return runtimeWs;
+    const rt = window.YUKI_RUNTIME || {};
+    if (rt.wsUrl) return rt.wsUrl;
+    if (rt.voiceBackendUrl) return backendWsUrl(rt.voiceBackendUrl);
 
     if (cfg.REALTIME && cfg.REALTIME.wsUrl) return cfg.REALTIME.wsUrl;
 
@@ -73,7 +82,12 @@
       return `${proto}//${host}:${voicePort}/realtime`;
     }
 
-    return `${proto}//${window.location.host}/realtime`;
+    // Same-origin only works with `npm start` (Node serves static + WS). Vercel cannot proxy WS.
+    if (local || !window.location.protocol.startsWith("http")) {
+      return `${proto}//${window.location.host}/realtime`;
+    }
+
+    return null;
   }
 
   function voiceServerHealthUrl() {
@@ -119,6 +133,10 @@
         return;
       }
       const url = wsUrl();
+      if (!url) {
+        fail("Voice not configured — set VOICE_BACKEND_URL on Vercel (Railway server URL)");
+        return;
+      }
       console.info("[Voice] connecting to", url);
       ws = new WebSocket(url);
 
@@ -165,7 +183,8 @@
       case "session.updated":
         sessionReady = true;
         emit("voice:ready");
-        promptGreeting();
+        resumeMicPipeline();
+        maybeStartConversation();
         onReady();
         break;
 
@@ -213,6 +232,12 @@
       default:
         break;
     }
+  }
+
+  function maybeStartConversation() {
+    if (!sessionReady || !audioUnlocked || !micStream || greetingSent) return;
+    greetingSent = true;
+    promptGreeting();
   }
 
   function promptGreeting() {
@@ -279,7 +304,24 @@
     stopLevelLoop();
     agentSpeaking = false;
     userSpeaking = false;
+    greetingSent = false;
     if (emitClosed) emit("voice:closed");
+  }
+
+  /** Must run inside a user gesture (tap/click) to unlock browser audio + mic. */
+  async function unlockAudio() {
+    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)();
+    playbackCtx = playbackCtx || captureCtx;
+    try {
+      if (captureCtx.state === "suspended") await captureCtx.resume();
+      if (playbackCtx.state === "suspended") await playbackCtx.resume();
+      audioUnlocked = true;
+      maybeStartConversation();
+      return true;
+    } catch (err) {
+      console.warn("[Voice] unlockAudio failed:", err);
+      return false;
+    }
   }
 
   async function ensureSession() {
@@ -302,19 +344,45 @@
   async function attachMicCapture() {
     if (!micStream) return false;
 
-    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)();
-    playbackCtx = playbackCtx || captureCtx;
-    if (playbackCtx.state === "suspended") await playbackCtx.resume();
-    if (captureCtx.state === "suspended") await captureCtx.resume();
+    await unlockAudio();
+    await resumeMicPipeline();
 
     if (!processor) await startMicCapture();
+    maybeStartConversation();
     return true;
   }
 
+  /** Keep AudioContext + mic tracks alive (required on mobile Chrome/Safari). */
+  async function resumeMicPipeline() {
+    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint: "interactive",
+    });
+    playbackCtx = playbackCtx || captureCtx;
+
+    if (captureCtx.state === "suspended") {
+      try { await captureCtx.resume(); } catch (err) {
+        console.warn("[Voice] captureCtx resume failed:", err);
+      }
+    }
+    if (playbackCtx.state === "suspended") {
+      try { await playbackCtx.resume(); } catch (_) {}
+    }
+    audioUnlocked = captureCtx.state === "running";
+
+    if (micStream) {
+      micStream.getAudioTracks().forEach((track) => {
+        if (!track.enabled) track.enabled = true;
+      });
+    }
+    return audioUnlocked;
+  }
+
   async function startSession() {
-    await ensureSession();
-    const micOk = await enableMicCapture();
+    await unlockAudio();
+    const micOk = await requestMic();
     if (!micOk) throw new Error("microphone-unavailable");
+    await ensureSession();
+    await attachMicCapture();
     return true;
   }
 
@@ -365,10 +433,7 @@
 
   async function startMicCapture() {
     if (!micStream || !ws) return;
-    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)();
-    playbackCtx = playbackCtx || captureCtx;
-
-    if (captureCtx.state === "suspended") await captureCtx.resume();
+    await resumeMicPipeline();
 
     const source = captureCtx.createMediaStreamSource(micStream);
     analyser = captureCtx.createAnalyser();
@@ -380,8 +445,13 @@
     let pending = new Float32Array(0);
     const samplesPerChunk = Math.floor((SAMPLE_RATE * CHUNK_MS) / 1000);
 
+    let chunksSent = 0;
     processor.onaudioprocess = (e) => {
       if (!sessionReady || ws?.readyState !== WebSocket.OPEN) return;
+      if (captureCtx?.state === "suspended") {
+        captureCtx.resume().catch(() => {});
+        return;
+      }
       const input = e.inputBuffer.getChannelData(0);
       const resampled = resample(input, captureCtx.sampleRate, SAMPLE_RATE);
       const merged = mergeFloat32(pending, resampled);
@@ -396,6 +466,8 @@
             audio: arrayBufferToBase64(pcm),
           })
         );
+        chunksSent += 1;
+        if (chunksSent === 1) emit("voice:mic:streaming");
       }
     };
 
@@ -446,8 +518,12 @@
   // Agent audio playback (PCM16 24kHz mono)
   // ---------------------------------------------------------------------------
   function playAudioDelta(base64) {
+    if (!audioUnlocked) return;
     if (!playbackCtx) playbackCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (playbackCtx.state === "suspended") playbackCtx.resume();
+    if (playbackCtx.state === "suspended") {
+      playbackCtx.resume().catch(() => {});
+      return;
+    }
 
     const pcm = base64ToArrayBuffer(base64);
     const samples = pcm16ToFloat32(pcm);
@@ -653,11 +729,13 @@
   async function checkVoiceServer() {
     try {
       const res = await fetch(voiceServerHealthUrl(), { cache: "no-store" });
-      if (!res.ok) return false;
+      if (!res.ok) return { reachable: false, hasBackend: false };
       const data = await res.json();
-      return data && data.ok === true;
+      const voiceBackend = !!(window.YUKI_RUNTIME?.voiceBackend);
+      const hasBackend = !!(data?.inworld || data?.voiceProxy || voiceBackend);
+      return { reachable: true, hasBackend, voiceBackend, ...data };
     } catch (_) {
-      return false;
+      return { reachable: false, hasBackend: false };
     }
   }
 
@@ -665,6 +743,7 @@
     connect,
     disconnect,
     ensureSession,
+    unlockAudio,
     enableMicCapture,
     attachMicCapture,
     startSession,

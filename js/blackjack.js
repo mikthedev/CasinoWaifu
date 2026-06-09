@@ -122,7 +122,7 @@
   function renderBetPhase() {
     phase = "bet";
     setMessage("Place your bet and deal");
-    el.btnRow.innerHTML = `<button class="action-btn bj-action" id="bj-deal-btn">DEAL</button>`;
+    el.btnRow.innerHTML = `<button type="button" class="action-btn bj-action" id="bj-deal-btn">DEAL</button>`;
     document.getElementById("bj-deal-btn").addEventListener("click", deal);
     markActive(el.chips, el.chips.find(b => Number(b.dataset.chip) === chip));
   }
@@ -131,9 +131,9 @@
     const pTotal = handTotal(playerHand);
     const canDouble = window.Casino.getBalance() >= chip;
     el.btnRow.innerHTML = `
-      <button class="action-btn bj-action" id="bj-hit">HIT</button>
-      <button class="action-btn bj-action secondary" id="bj-stand">STAND</button>
-      ${canDouble ? `<button class="action-btn bj-action secondary" id="bj-double">2×</button>` : ""}
+      <button type="button" class="action-btn bj-action" id="bj-hit">HIT</button>
+      <button type="button" class="action-btn bj-action secondary" id="bj-stand">STAND</button>
+      ${canDouble ? `<button type="button" class="action-btn bj-action secondary" id="bj-double">2×</button>` : ""}
     `;
     document.getElementById("bj-hit").addEventListener("click", hit);
     document.getElementById("bj-stand").addEventListener("click", stand);
@@ -144,7 +144,7 @@
   function renderDone() {
     phase = "done";
     setTimeout(() => {
-      el.btnRow.innerHTML = `<button class="action-btn bj-action" id="bj-deal-btn">DEAL AGAIN</button>`;
+      el.btnRow.innerHTML = `<button type="button" class="action-btn bj-action" id="bj-deal-btn">DEAL AGAIN</button>`;
       document.getElementById("bj-deal-btn").addEventListener("click", deal);
     }, 1400);
   }

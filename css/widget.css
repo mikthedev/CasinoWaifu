@@ -4,17 +4,17 @@
    ========================================================================== */
 
 .yuki-bar {
-  --yuki-h: clamp(88px, 12vh, 118px);
-  --slide-depth: 140px;
+  --yuki-h: clamp(72px, 11vh, 96px);
+  --slide-depth: 120px;
   flex-shrink: 0;
   display: flex;
   justify-content: center;
-  padding: 2px 12px 0;
+  padding: 0 8px;
   pointer-events: none;
   position: relative;
   z-index: 2;
   overflow: hidden;
-  min-height: calc(var(--yuki-h) + 44px);
+  min-height: calc(var(--yuki-h) + 36px);
   transition: min-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

@@ -65,7 +65,24 @@
       startCompanionIdle();
     } else {
       setEmotion(E.IDLE);
-      if (autoVoice && !userMuted) initCasinoVoice();
+      if (autoVoice && !userMuted) {
+        initCasinoVoice();
+        checkVoiceAvailability();
+      }
+    }
+  }
+
+  async function checkVoiceAvailability() {
+    if (!window.Voice?.checkVoiceServer) return;
+    const status = await window.Voice.checkVoiceServer();
+    const onVercel = location.hostname.includes("vercel.app");
+    const hasWs = !!(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl);
+    if (onVercel && !hasWs) {
+      toast("Voice needs VOICE_BACKEND_URL on Vercel → redeploy", "info", 8000);
+    } else if (onVercel && hasWs && !status.reachable) {
+      toast("Voice server unreachable — check Railway is running", "info", 6000);
+    } else if (!status.reachable && !onVercel) {
+      toast("Voice server offline — run npm start", "info", 5000);
     }
   }
 
@@ -120,16 +137,18 @@
 
   async function initCasinoVoice() {
     if (userMuted) return;
+    const onVercel = location.hostname.includes("vercel.app");
+    const hasWs = !!(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl);
+    if (onVercel && !hasWs) return;
 
     try {
       await window.Voice.ensureSession();
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
-
-      const granted = await queryMicGranted();
-      if (granted) await enableMicSilently();
-    } catch (_) {
+      if (ui.charWrap) ui.charWrap.title = "Tap Yuki & allow mic to talk";
+    } catch (err) {
+      console.warn("[Widget] voice init failed:", err);
       scheduleReconnect();
     }
   }
@@ -145,20 +164,27 @@
   }
 
   async function onCharTap() {
-    if (isHidden || userMuted || micEnabled || connecting) return;
+    if (isHidden || userMuted || connecting) return;
     connecting = true;
     setEmotion(E.THINKING);
     try {
-      const micOk = await window.Voice.requestMic();
-      if (!micOk) throw new Error("microphone-unavailable");
-      if (!window.Voice.isConnected()) await window.Voice.ensureSession();
-      await window.Voice.attachMicCapture();
+      await window.Voice.startSession();
       micEnabled = true;
       voiceActive = true;
+      if (ui.charWrap) ui.charWrap.title = "Talking with Yuki — tap mute to pause";
       setEmotion(E.LISTENING);
-    } catch (_) {
+      toast("Mic on — speak to Yuki!", "info", 2500);
+    } catch (err) {
+      console.warn("[Widget] char tap voice failed:", err);
       setEmotion(E.WORRIED);
-      if (isHidden) toast("Allow mic in browser", "info", 4000);
+      const onVercel = location.hostname.includes("vercel.app");
+      if (onVercel && !(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl)) {
+        toast("Set VOICE_BACKEND_URL on Vercel, redeploy", "info", 6000);
+      } else if (String(err?.message || err).includes("microphone")) {
+        toast("Allow mic in browser settings", "info", 4500);
+      } else {
+        toast("Voice failed — check Railway server", "info", 4500);
+      }
     } finally {
       connecting = false;
     }
@@ -197,7 +223,17 @@
       ui.mute.textContent = "🔊";
       ui.mute.classList.remove("is-muted");
       reconnectAttempt = 0;
-      initCasinoVoice();
+      initCasinoVoice().then(async () => {
+        if (!micEnabled) {
+          await window.Voice.unlockAudio();
+          const micOk = await window.Voice.requestMic();
+          if (micOk) {
+            await window.Voice.attachMicCapture();
+            micEnabled = true;
+            setEmotion(E.LISTENING);
+          }
+        }
+      });
       if (isHidden) toast("Yuki back~", "info", 2500);
     }
   }
@@ -274,6 +310,7 @@
     setEmotion(E.THINKING);
 
     try {
+      await window.Voice.unlockAudio();
       const micOk = await window.Voice.requestMic();
       if (!micOk) throw new Error("microphone-unavailable");
       await window.Voice.ensureSession();
@@ -414,9 +451,20 @@
       else if (!isHidden) setEmotion(E.IDLE);
     });
 
-    bus.on("voice:error", () => {
+    bus.on("voice:error", ({ message }) => {
       connecting = false;
       if (!userMuted && autoVoice) scheduleReconnect();
+      const msg = message || "Voice unavailable";
+      const onVercel = location.hostname.includes("vercel.app");
+      if (msg.includes("not configured") || msg.includes("VOICE_BACKEND")) {
+        toast("Voice: set VOICE_BACKEND_URL on Vercel → redeploy", "info", 7000);
+      } else if (onVercel && (msg.includes("unreachable") || msg.includes("closed") || msg.includes("timed out"))) {
+        toast("Voice server offline — check Railway deploy", "info", 6000);
+      } else if (msg.includes("unreachable") || msg.includes("closed") || msg.includes("timed out")) {
+        toast("Voice server offline — run npm start locally", "info", 5000);
+      } else {
+        toast(msg, "info", 4000);
+      }
     });
 
     bus.on("voice:listening:start", () => {
@@ -452,6 +500,11 @@
 
     bus.on("voice:mic:granted", () => {
       micEnabled = true;
+    });
+
+    bus.on("voice:mic:streaming", () => {
+      micEnabled = true;
+      if (!isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
   }
 

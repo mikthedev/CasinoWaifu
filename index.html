@@ -86,24 +86,25 @@
             <div class="screen-inner bj-screen">
 
               <div class="bj-table">
-                <div class="bj-side">
-                  <div class="bj-label">Dealer</div>
-                  <div class="bj-score" id="bj-dealer-score">—</div>
+                <div class="bj-hand bj-hand-dealer">
+                  <div class="bj-hand-head">
+                    <span class="bj-label">Dealer</span>
+                    <span class="bj-score" id="bj-dealer-score">—</span>
+                  </div>
                   <div class="bj-cards" id="bj-dealer-cards"></div>
                 </div>
 
-                <div class="bj-divider"></div>
-
-                <div class="bj-side">
-                  <div class="bj-label">You</div>
-                  <div class="bj-score" id="bj-player-score">—</div>
+                <div class="bj-hand bj-hand-player">
+                  <div class="bj-hand-head">
+                    <span class="bj-label">You</span>
+                    <span class="bj-score" id="bj-player-score">—</span>
+                  </div>
                   <div class="bj-cards" id="bj-player-cards"></div>
                 </div>
+
+                <div class="bj-message" id="bj-message"></div>
               </div>
 
-              <div class="bj-message" id="bj-message"></div>
-
-              <!-- Yuki watches from the right side of the table -->
               <div class="yuki-slot yuki-slot--bar" data-game="blackjack"></div>
 
               <div class="controls-sheet bj-controls">
@@ -114,7 +115,7 @@
                   <button class="chip-pill" data-chip="100">100</button>
                 </div>
                 <div class="bj-btn-row" id="bj-btn-row">
-                  <button class="action-btn bj-action" id="bj-deal-btn">DEAL</button>
+                  <button type="button" class="action-btn bj-action" id="bj-deal-btn">DEAL</button>
                 </div>
               </div>
 
@@ -151,8 +152,8 @@
                   </div>
                 </div>
                 <div class="crash-btn-row">
-                  <button class="action-btn crash-action" id="crash-btn">BET</button>
-                  <button class="action-btn crash-cashout secondary" id="crash-cashout-btn" disabled>CASH OUT</button>
+                  <button type="button" class="action-btn crash-action" id="crash-btn">BET</button>
+                  <button type="button" class="action-btn crash-cashout secondary" id="crash-cashout-btn" disabled>CASH OUT</button>
                 </div>
               </div>
 

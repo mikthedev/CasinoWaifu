@@ -105,16 +105,21 @@ This repo includes `vercel.json` so Vercel deploys the **static Yuki app**, not 
 
 The roulette game, Yuki widget, hide/mute UI, and sprites all work on Vercel.
 
-**Voice on Vercel:** Vercel cannot host persistent WebSocket proxies. For Inworld voice in production:
+**Voice on Vercel:** Vercel cannot host WebSocket servers. The browser must connect **directly** to your Railway voice server:
 
-1. Deploy `server/index.js` to **Railway**, **Render**, or **Fly.io** with `INWORLD_API_KEY` set
-2. In Vercel → Settings → Environment Variables, add:
+1. Deploy `server/index.js` to **Railway** with `INWORLD_API_KEY` set
+2. Copy the public Railway URL (e.g. `https://casinowaifu-production.up.railway.app`)
+3. In Vercel → Settings → Environment Variables, add:
    ```
-   VOICE_PROXY_URL=wss://your-voice-service.example.com/realtime
+   VOICE_BACKEND_URL=https://your-app.up.railway.app
    ```
-3. Redeploy Vercel so `scripts/vercel-build.mjs` injects that URL into the client
+   Or set an explicit WebSocket URL:
+   ```
+   VOICE_PROXY_URL=wss://your-app.up.railway.app/realtime
+   ```
+4. **Redeploy Vercel** — the build injects the WSS URL into `js/runtime.js`
 
-Without `VOICE_PROXY_URL`, the site works but Talk/voice will not connect.
+On the hosted site: **tap Yuki** and allow the microphone. Voice will not work until both Railway and `VOICE_BACKEND_URL` are configured.
 
 ### Local / full stack
 

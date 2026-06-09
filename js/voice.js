@@ -31,6 +31,10 @@
   const CHUNK_MS = 80;
 
   let ws = null;
+  let transport = "ws"; // "ws" | "webrtc"
+  let pc = null;
+  let dc = null;
+  let remoteAudioEl = null;
   let connected = false;
   let sessionReady = false;
   let muted = false;
@@ -115,13 +119,166 @@
     if (window.YUKI_loadRuntime) await window.YUKI_loadRuntime();
   }
 
+  function useWebRTC() {
+    if (window.YUKI_isLocalHost?.()) return false;
+    const rt = window.YUKI_RUNTIME || {};
+    if (rt.mode === "webrtc") return true;
+    if (rt.mode === "proxy") return false;
+    return !!(rt.hasInworldKey && !rt.wsUrl);
+  }
+
+  function sendJson(obj) {
+    const text = JSON.stringify(obj);
+    if (transport === "webrtc") {
+      if (dc?.readyState === "open") dc.send(text);
+    } else if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(text);
+    }
+  }
+
+  function isTransportOpen() {
+    if (transport === "webrtc") return dc?.readyState === "open";
+    return ws?.readyState === WebSocket.OPEN;
+  }
+
+  function waitForIceComplete(peer) {
+    if (peer.iceGatheringState === "complete") return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        if (peer.iceGatheringState === "complete") {
+          peer.removeEventListener("icegatheringstatechange", done);
+          resolve();
+        }
+      };
+      peer.addEventListener("icegatheringstatechange", done);
+      setTimeout(resolve, 4000);
+    });
+  }
+
   // ---------------------------------------------------------------------------
-  // WebSocket session
+  // WebRTC session (Vercel — browser connects direct to Inworld, no Railway)
   // ---------------------------------------------------------------------------
-  function connect() {
+  async function connectWebRTC() {
+    if (connected && sessionReady) return;
+    cleanupTransport();
+
+    transport = "webrtc";
+    emit("voice:connecting");
+
+    const cfgRes = await fetch("/api/webrtc-config", { cache: "no-store" });
+    if (!cfgRes.ok) {
+      const err = await cfgRes.json().catch(() => ({}));
+      throw new Error(err.error || "Voice API not configured — set INWORLD_API_KEY on Vercel");
+    }
+    const cfgData = await cfgRes.json();
+    console.info("[Voice] WebRTC mode → Inworld Realtime");
+
+    if (!micStream) {
+      const micOk = await requestMic();
+      if (!micOk) throw new Error("microphone-unavailable");
+    }
+
+    await unlockAudio();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timeoutId = setTimeout(() => {
+        if (!settled) fail("Connection timed out");
+      }, 25000);
+
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        resolve();
+      };
+      const fail = (msg) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        cleanupTransport();
+        emit("voice:error", { message: msg });
+        reject(new Error(msg));
+      };
+
+      pc = new RTCPeerConnection({ iceServers: cfgData.ice_servers || [] });
+      dc = pc.createDataChannel("oai-events", { ordered: true });
+
+      micStream.getAudioTracks().forEach((t) => pc.addTrack(t, micStream));
+
+      pc.ontrack = (e) => {
+        if (!remoteAudioEl) {
+          remoteAudioEl = document.createElement("audio");
+          remoteAudioEl.autoplay = true;
+          remoteAudioEl.playsInline = true;
+          remoteAudioEl.setAttribute("playsinline", "");
+          document.body.appendChild(remoteAudioEl);
+        }
+        remoteAudioEl.srcObject = new MediaStream([e.track]);
+        if (remoteAudioEl.paused) remoteAudioEl.play().catch(() => {});
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "failed") fail("WebRTC connection failed");
+      };
+
+      dc.onopen = () => {
+        connected = true;
+        audioUnlocked = true;
+      };
+
+      dc.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch (_) {
+          return;
+        }
+        if (cfg.EVENT_SYSTEM?.debug) console.log("[Voice] ←", msg.type);
+        handleServerMessage(msg, succeed, fail);
+      };
+
+      dc.onclose = () => {
+        if (!settled && !sessionReady) fail("WebRTC data channel closed");
+      };
+
+      (async () => {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await waitForIceComplete(pc);
+
+          const res = await fetch(cfgData.callsUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/sdp",
+              Authorization: `Bearer ${cfgData.token}`,
+            },
+            body: pc.localDescription.sdp,
+          });
+
+          if (!res.ok) {
+            const t = await res.text();
+            fail(`Inworld WebRTC failed (${res.status}): ${t.slice(0, 120)}`);
+            return;
+          }
+
+          await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+        } catch (err) {
+          fail(err.message || "WebRTC setup failed");
+        }
+      })();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebSocket session (local npm start or legacy Railway proxy)
+  // ---------------------------------------------------------------------------
+  function connectWs() {
     if (connected && sessionReady) return Promise.resolve();
-    cleanupWs();
-    return ensureRuntimeConfig().then(() => new Promise((resolve, reject) => {
+    cleanupTransport();
+    transport = "ws";
+    return new Promise((resolve, reject) => {
       let settled = false;
       let timeoutId = null;
 
@@ -135,7 +292,7 @@
         if (settled) return;
         settled = true;
         if (timeoutId) clearTimeout(timeoutId);
-        cleanupWs();
+        cleanupTransport();
         emit("voice:error", { message: msg });
         reject(new Error(msg));
       };
@@ -147,7 +304,7 @@
       }
       const url = wsUrl();
       if (!url) {
-        fail("Voice not configured — set VOICE_BACKEND_URL on Vercel (Railway server URL)");
+        fail("Voice not configured — set INWORLD_API_KEY on Vercel or run npm start locally");
         return;
       }
       console.info("[Voice] connecting to", url);
@@ -168,19 +325,31 @@
         handleServerMessage(msg, succeed, fail);
       };
 
-      ws.onerror = () => fail("Voice server unreachable");
-      ws.onclose = () => {
+      ws.onerror = () => fail(`Voice server unreachable (${url})`);
+      ws.onclose = (ev) => {
         const wasLive = sessionReady;
-        cleanupWs();
+        cleanupTransport();
         if (wasLive) emit("voice:closed");
         cleanupSession(false);
-        if (!settled) fail("Voice connection closed");
+        if (!settled) {
+          const detail = ev.code ? ` code ${ev.code}` : "";
+          fail(`Voice connection closed${detail}`);
+        }
       };
 
       timeoutId = setTimeout(() => {
         if (!settled) fail("Connection timed out");
       }, 20000);
-    }));
+    });
+  }
+
+  function connect() {
+    if (connected && sessionReady) return Promise.resolve();
+    return ensureRuntimeConfig().then(() => {
+      if (useWebRTC()) return connectWebRTC();
+      transport = "ws";
+      return connectWs();
+    });
   }
 
   async function handleServerMessage(msg, onReady, onFail) {
@@ -190,7 +359,7 @@
         break;
 
       case "session.created":
-        ws.send(JSON.stringify(window.YUKI_SESSION_UPDATE || buildDefaultSessionUpdate()));
+        sendJson(window.YUKI_SESSION_UPDATE || buildDefaultSessionUpdate());
         break;
 
       case "session.updated":
@@ -204,8 +373,8 @@
       case "input_audio_buffer.speech_started":
         userSpeaking = true;
         interruptPlayback();
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "response.cancel" }));
+        if (isTransportOpen()) {
+          sendJson({ type: "response.cancel" });
         }
         emit("voice:listening:start");
         emit("voice:thinking:stop");
@@ -217,7 +386,16 @@
         emit("voice:thinking:start");
         break;
 
+      case "response.created":
+        if (transport === "webrtc" && !agentSpeaking) {
+          agentSpeaking = true;
+          emit("voice:thinking:stop");
+          emit("voice:speaking:start");
+        }
+        break;
+
       case "response.output_audio.delta":
+        if (transport === "webrtc") break;
         if (!agentSpeaking) {
           agentSpeaking = true;
           emit("voice:thinking:stop");
@@ -259,17 +437,15 @@
     const text = casino
       ? "Hey Yuki! I'm at the roulette table — say a quick friendly hello!"
       : "Hey Yuki! I just tapped Talk — say a quick friendly hello.";
-    ws.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text }],
-        },
-      })
-    );
-    ws.send(JSON.stringify({ type: "response.create" }));
+    sendJson({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text }],
+      },
+    });
+    sendJson({ type: "response.create" });
   }
 
   function buildDefaultSessionUpdate() {
@@ -300,17 +476,31 @@
   function disconnect() {
     stopMicCapture();
     interruptPlayback();
-    cleanupWs();
+    cleanupTransport();
     cleanupSession(true);
   }
 
-  function cleanupWs() {
+  function cleanupTransport() {
     if (ws) {
       try { ws.close(); } catch (_) {}
     }
     ws = null;
+    if (pc) {
+      try { pc.close(); } catch (_) {}
+    }
+    pc = null;
+    dc = null;
+    if (remoteAudioEl) {
+      try { remoteAudioEl.remove(); } catch (_) {}
+      remoteAudioEl = null;
+    }
     connected = false;
     sessionReady = false;
+    transport = "ws";
+  }
+
+  function cleanupWs() {
+    cleanupTransport();
   }
 
   function cleanupSession(emitClosed) {
@@ -361,7 +551,11 @@
   /** Wire mic stream to WebSocket — call after requestMic() when stream already exists. */
   async function attachMicCapture() {
     if (!micStream) return false;
-
+    if (transport === "webrtc") {
+      await unlockAudio();
+      maybeStartConversation();
+      return true;
+    }
     await unlockAudio();
     await resumeMicPipeline();
 
@@ -475,7 +669,8 @@
 
     let chunksSent = 0;
     processor.onaudioprocess = (e) => {
-      if (!sessionReady || ws?.readyState !== WebSocket.OPEN) return;
+      if (transport === "webrtc") return;
+      if (!sessionReady || !isTransportOpen()) return;
       if (captureCtx?.state === "suspended") {
         captureCtx.resume().catch(() => {});
         return;
@@ -488,12 +683,10 @@
         const chunk = pending.slice(0, samplesPerChunk);
         pending = pending.slice(samplesPerChunk);
         const pcm = floatTo16BitPCM(chunk);
-        ws.send(
-          JSON.stringify({
-            type: "input_audio_buffer.append",
-            audio: arrayBufferToBase64(pcm),
-          })
-        );
+        sendJson({
+          type: "input_audio_buffer.append",
+          audio: arrayBufferToBase64(pcm),
+        });
         chunksSent += 1;
         if (chunksSent === 1) emit("voice:mic:streaming");
       }
@@ -590,7 +783,7 @@
   // Roulette integration — context + spoken reactions when voice is live
   // ---------------------------------------------------------------------------
   function notifyGameEvent(type, payload = {}) {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !sessionReady) return;
+    if (!isTransportOpen() || !sessionReady) return;
     const lines = {
       // Roulette
       WIN:          `System: Roulette — player won +${payload.amount || "?"} credits (${payload.color} ${payload.number}).`,
@@ -613,21 +806,19 @@
       SLOTS_LOSE:   `System: Slots — player didn't match.`,
     };
     const text = lines[type] || `System: Casino event ${type}.`;
-    ws.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "system",
-          content: [{ type: "input_text", text }],
-        },
-      })
-    );
+    sendJson({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "system",
+        content: [{ type: "input_text", text }],
+      },
+    });
   }
 
   /** When voice is live, Yuki speaks a brief reaction to a spin outcome. */
   function reactToGameEvent(type, payload = {}) {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !sessionReady) return false;
+    if (!isTransportOpen() || !sessionReady) return false;
 
     notifyGameEvent(type, payload);
 
@@ -636,8 +827,8 @@
     // Casino outcomes take priority over ambient mic / ongoing speech
     if (agentSpeaking) {
       interruptPlayback();
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "response.cancel" }));
+      if (isTransportOpen()) {
+        sendJson({ type: "response.cancel" });
       }
     }
     userSpeaking = false;
@@ -665,17 +856,15 @@
     const text = prompts[type];
     if (!text) return false;
 
-    ws.send(
-      JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-          type: "message",
-          role: "user",
-          content: [{ type: "input_text", text }],
-        },
-      })
-    );
-    ws.send(JSON.stringify({ type: "response.create" }));
+    sendJson({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text }],
+      },
+    });
+    sendJson({ type: "response.create" });
     return true;
   }
 

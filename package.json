@@ -8,6 +8,8 @@
     "dev": "node server/index.js",
     "vercel-build": "node scripts/vercel-build.mjs",
     "test:realtime": "node scripts/test-realtime.mjs",
+    "test:jwt": "node scripts/test-jwt.mjs",
+    "test:remote": "node scripts/test-remote-voice.mjs",
     "test:greeting": "node scripts/test-greeting.mjs"
   },
   "dependencies": {

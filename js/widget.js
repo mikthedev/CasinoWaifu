@@ -79,10 +79,8 @@
 
   function voiceConfigHint(status) {
     if (window.YUKI_isVoiceConfigured?.()) return null;
-    if (status?.hasInworldKeyOnVercel) {
-      return "INWORLD_API_KEY on Vercel isn't enough — add VOICE_BACKEND_URL (Railway URL), redeploy";
-    }
-    return "Add VOICE_BACKEND_URL on Vercel = your Railway URL, then redeploy";
+    if (status?.mode === "webrtc" || status?.hasInworldKey) return null;
+    return "Add INWORLD_API_KEY on Vercel → Settings → Environment Variables → redeploy";
   }
 
   async function checkVoiceAvailability() {
@@ -99,9 +97,11 @@
     const configured = window.YUKI_isVoiceConfigured?.() ?? !!config.voiceBackend;
 
     if (hosted && !configured) {
-      toast(voiceConfigHint(config) || "Voice not configured on host", "info", 9000);
-    } else if (hosted && configured && !status.reachable) {
-      toast("Voice server unreachable — is Railway running?", "info", 6000);
+      toast(voiceConfigHint(config) || "Add INWORLD_API_KEY on Vercel, then redeploy", "info", 9000);
+    } else if (hosted && configured && config.mode === "proxy" && !status.reachable) {
+      toast("Voice server unreachable — check Railway is running", "info", 6000);
+    } else if (hosted && configured && config.mode === "webrtc" && !status.reachable) {
+      // WebRTC health is checked via webrtc-config on connect
     } else if (!status.reachable && !hosted) {
       toast("Voice server offline — run npm start", "info", 5000);
     }
@@ -160,7 +160,11 @@
 
     try {
       await window.Voice.ensureRuntimeConfig();
-      await window.Voice.ensureSession();
+      const rt = window.YUKI_RUNTIME || {};
+      // WebRTC: connect on tap only (needs mic gesture). WS proxy: pre-connect session.
+      if (rt.mode !== "webrtc") {
+        await window.Voice.ensureSession();
+      }
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
@@ -197,12 +201,17 @@
       console.warn("[Widget] char tap voice failed:", err);
       setEmotion(E.WORRIED);
       const hosted = window.YUKI_isHosted?.() ?? false;
+      const msg = String(err?.message || err);
       if (hosted && !window.YUKI_isVoiceConfigured?.()) {
-        toast(voiceConfigHint() || "Set VOICE_BACKEND_URL on Vercel", "info", 7000);
-      } else if (String(err?.message || err).includes("microphone")) {
+        toast(voiceConfigHint() || "Add INWORLD_API_KEY on Vercel", "info", 7000);
+      } else if (msg.includes("microphone")) {
         toast("Allow mic: click lock icon in address bar → Microphone", "info", 5500);
+      } else if (msg.includes("INWORLD_API_KEY") || msg.includes("not configured")) {
+        toast("Add INWORLD_API_KEY on Vercel → redeploy", "info", 6000);
+      } else if (msg.includes("unreachable") || msg.includes("WebRTC") || msg.includes("Inworld")) {
+        toast(msg.length > 70 ? msg.slice(0, 68) + "…" : msg, "info", 6000);
       } else {
-        toast("Voice failed — check Railway server", "info", 4500);
+        toast(msg.length > 60 ? msg.slice(0, 58) + "…" : msg, "info", 5000);
       }
     } finally {
       connecting = false;

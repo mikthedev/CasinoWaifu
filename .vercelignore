@@ -1,0 +1,9 @@
+next-demo
+.pylibs
+server
+scripts/test-greeting.mjs
+scripts/test-realtime.mjs
+.env
+.env.*
+node_modules
+.git

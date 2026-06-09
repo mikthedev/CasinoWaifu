@@ -50,6 +50,9 @@
   const emit = (name, data) => bus && bus.emit(name, data);
 
   function wsUrl() {
+    const runtimeWs = window.YUKI_RUNTIME && window.YUKI_RUNTIME.wsUrl;
+    if (runtimeWs) return runtimeWs;
+
     if (cfg.REALTIME && cfg.REALTIME.wsUrl) return cfg.REALTIME.wsUrl;
 
     const voicePort = Number(cfg.REALTIME?.port) || 8787;

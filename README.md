@@ -92,14 +92,45 @@ roulette.js  ──▶  EventBus  ──▶  widget.js  ──▶  character.js
 
 ## Deploy
 
-- **Static-only:** host repo root on any static server (game works, no voice)
-- **Full experience:** deploy Node server with `INWORLD_API_KEY` (Railway, Fly.io, Render, etc.)
+### Vercel (game + UI)
 
----
+This repo includes `vercel.json` so Vercel deploys the **static Yuki app**, not the Next.js demo in `next-demo/`.
 
-## Also in this repo
+1. Import the GitHub repo on [vercel.com](https://vercel.com)
+2. **Framework Preset:** Other (or leave as auto — `vercel.json` overrides Next.js)
+3. **Root Directory:** `.` (repo root)
+4. **Build Command:** `node scripts/vercel-build.mjs` (already in `vercel.json`)
+5. **Install Command:** leave empty
+6. Redeploy
 
-`next-demo/` — earlier Next.js + PixiJS roulette UI prototype (separate from Yuki).
+The roulette game, Yuki widget, hide/mute UI, and sprites all work on Vercel.
+
+**Voice on Vercel:** Vercel cannot host persistent WebSocket proxies. For Inworld voice in production:
+
+1. Deploy `server/index.js` to **Railway**, **Render**, or **Fly.io** with `INWORLD_API_KEY` set
+2. In Vercel → Settings → Environment Variables, add:
+   ```
+   VOICE_PROXY_URL=wss://your-voice-service.example.com/realtime
+   ```
+3. Redeploy Vercel so `scripts/vercel-build.mjs` injects that URL into the client
+
+Without `VOICE_PROXY_URL`, the site works but Talk/voice will not connect.
+
+### Local / full stack
+
+```bash
+npm install
+cp .env.example .env
+npm start
+```
+
+### Static-only (no voice)
+
+Host the repo root on any static host — game + visual reactions work; voice needs the Node proxy.
+
+### Next.js demo
+
+The older PixiJS prototype lives in `next-demo/` (`cd next-demo && npm install && npm run dev`).
 
 ---
 

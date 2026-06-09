@@ -1,0 +1,16 @@
+{
+  "name": "yuki-companion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test:realtime": "node scripts/test-realtime.mjs",
+    "test:greeting": "node scripts/test-greeting.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ws": "^8.18.0"
+  }
+}

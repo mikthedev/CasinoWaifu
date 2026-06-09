@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# env & secrets — never commit API keys
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local python tooling
+.pylibs/
+
+# IDE
+.vscode/
+.idea/
+
+# TypeScript / Next build artifacts
+*.tsbuildinfo
+next-env.d.ts

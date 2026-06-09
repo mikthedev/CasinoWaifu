@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#080a12" />
+    <title>Yuki · Roulette Companion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/game.css" />
+    <link rel="stylesheet" href="css/widget.css" />
+  </head>
+  <body class="casino-mode">
+    <div class="desktop-note">
+      <div class="phone-icon">📱</div>
+      <h2>Lucky Spin + Yuki</h2>
+      <p>Yuki sits above the bet controls — 🔊 on her left, Hide on her right.</p>
+      <p class="desktop-link"><a href="companion.html">Talk with Yuki only →</a></p>
+    </div>
+
+    <div class="device-frame">
+      <main class="phone">
+        <section class="game" aria-label="Roulette game">
+          <header class="app-bar">
+            <div class="app-bar-left">
+              <span class="app-logo">✦</span>
+              <span class="app-title">Lucky Spin</span>
+            </div>
+            <div class="wallet-pill">
+              <span class="wallet-icon">◉</span>
+              <span id="balance">1,000</span>
+            </div>
+          </header>
+
+          <div class="wheel-stage">
+            <div class="wheel-pointer"></div>
+            <div class="wheel-frame">
+              <div class="wheel" id="wheel"></div>
+              <div class="wheel-hub">
+                <div class="result idle" id="result">?</div>
+              </div>
+            </div>
+            <p class="result-label" id="result-label">Place your bet</p>
+            <div class="history" id="history" aria-label="Recent results"></div>
+          </div>
+
+          <div id="yuki-widget" class="yuki-bar" aria-label="Yuki companion"></div>
+
+          <div class="controls-sheet">
+            <div class="seg-control bet-types">
+              <button class="seg-btn red active" data-bet="red">Red</button>
+              <button class="seg-btn black" data-bet="black">Black</button>
+              <button class="seg-btn number" data-bet="number">#</button>
+            </div>
+
+            <div class="number-wrap" id="number-wrap">
+              <input id="bet-number" type="number" min="0" max="36" value="7" inputmode="numeric" aria-label="Bet number" />
+              <span class="hint">35× payout</span>
+            </div>
+
+            <div class="chip-row chips">
+              <button class="chip-pill" data-chip="10">10</button>
+              <button class="chip-pill active" data-chip="25">25</button>
+              <button class="chip-pill" data-chip="50">50</button>
+              <button class="chip-pill" data-chip="100">100</button>
+            </div>
+
+            <div class="spin-area">
+              <button class="spin-btn" id="spin-btn">
+                <span class="spin-label">Spin</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/eventBus.js"></script>
+    <script src="js/memory.js"></script>
+    <script src="js/character.js"></script>
+    <script src="js/sessionConfig.js"></script>
+    <script src="js/voice.js"></script>
+    <script src="js/roulette.js"></script>
+    <script src="js/widget.js"></script>
+  </body>
+</html>

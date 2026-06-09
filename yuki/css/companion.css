@@ -1,0 +1,274 @@
+/* ============================================================================
+   companion.css — Yuki-only view (no casino)
+   ========================================================================== */
+
+:root {
+  --bg-deep: #080a12;
+  --bg-glass: rgba(14, 18, 32, 0.72);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --accent: #6ee7ff;
+  --accent-2: #c084fc;
+  --ink: #f4f6ff;
+  --muted: #8b95b8;
+  --phone-w: 430px;
+  --phone-h: 880px;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body.companion-mode {
+  margin: 0;
+  height: 100%;
+  font-family: "Outfit", "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(110, 231, 255, 0.1), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(192, 132, 252, 0.08), transparent),
+    var(--bg-deep);
+}
+
+body.companion-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.companion-mode .desktop-note {
+  display: none;
+}
+
+.companion-mode .device-frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.companion-mode .companion-phone {
+  position: relative;
+  width: 100%;
+  max-width: var(--phone-w);
+  height: 100%;
+  max-height: var(--phone-h);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-deep);
+}
+
+@media (max-width: 480px) {
+  .companion-mode .companion-phone {
+    max-width: 100%;
+    max-height: 100%;
+    height: 100dvh;
+  }
+}
+
+@media (min-width: 900px) {
+  body.companion-mode {
+    gap: 48px;
+  }
+  .companion-mode .device-frame {
+    width: auto;
+  }
+  .companion-mode .companion-phone {
+    height: var(--phone-h);
+    border-radius: 42px;
+    border: 10px solid #05070f;
+    box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.06) inset;
+  }
+  .companion-mode .desktop-note {
+    display: block;
+    max-width: 320px;
+    color: var(--muted);
+  }
+  .companion-mode .desktop-note h2 {
+    color: var(--ink);
+    margin: 8px 0;
+  }
+  .companion-mode .desktop-link {
+    margin-top: 16px;
+  }
+  .companion-mode .desktop-link a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 700;
+  }
+}
+
+/* ---- header ------------------------------------------------------------ */
+.companion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 8px;
+  z-index: 2;
+}
+
+.companion-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brand-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff, var(--accent));
+  box-shadow: 0 0 12px var(--accent);
+}
+
+.companion-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #080a12;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  padding: 6px 12px;
+  border-radius: 999px;
+}
+
+/* ---- main scene -------------------------------------------------------- */
+.companion-scene {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.companion-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 75%, rgba(110, 231, 255, 0.1) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 30%, rgba(192, 132, 252, 0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.companion-widget {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* ---- footer ------------------------------------------------------------ */
+.companion-footer {
+  text-align: center;
+  padding: 12px 20px 22px;
+  color: var(--muted);
+  font-size: 13px;
+  z-index: 2;
+}
+
+.companion-footer strong {
+  color: var(--accent);
+}
+
+.companion-mode.voice-live .companion-footer {
+  opacity: 0.35;
+  transition: opacity 0.3s ease;
+}
+
+/* ---- companion widget overrides ---------------------------------------- */
+.companion-mode {
+  --yuki-h: clamp(260px, 48vh, 400px);
+}
+
+.companion-mode #yuki-widget {
+  pointer-events: auto;
+}
+
+.companion-mode .yuki-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.companion-mode .yuki-peek {
+  display: none !important;
+}
+
+.companion-mode .yuki-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 20px;
+}
+
+.companion-mode .yuki-char-wrap {
+  height: var(--yuki-h);
+}
+
+.companion-mode .yuki-toast {
+  position: relative;
+  top: auto;
+  display: block;
+  max-width: min(88vw, 300px);
+  margin-bottom: 12px;
+  font-size: 13px;
+  padding: 10px 14px;
+}
+.companion-mode .yuki-toast:not(.show) {
+  opacity: 0;
+}
+.companion-mode .yuki-root:not(.yuki-hidden) .yuki-toast {
+  display: block;
+}
+
+.companion-mode .yuki-controls {
+  position: relative;
+  flex-direction: row;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.companion-mode .yc-btn.talk {
+  flex: 1;
+  min-width: 140px;
+  height: 48px;
+  width: auto;
+  padding: 0 16px;
+  font-size: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #080a12;
+  border-color: rgba(255, 255, 255, 0.35);
+  font-weight: 800;
+}
+.companion-mode .yc-btn.talk.active {
+  background: linear-gradient(135deg, #ff7ab6, #ff4d6d);
+  color: #fff;
+}
+
+.companion-mode .yc-btn.mute {
+  width: 48px;
+  height: 48px;
+}
+
+.companion-mode .listen-ring {
+  width: 72%;
+}

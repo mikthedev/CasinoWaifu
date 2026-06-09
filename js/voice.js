@@ -48,6 +48,8 @@
   let userSpeaking = false;
   let audioUnlocked = false;
   let greetingSent = false;
+  let connectPromise = null;
+  let webrtcCfg = null;
 
   // Scheduled playback nodes for interrupt support
   let scheduledSources = [];
@@ -141,7 +143,7 @@
     return ws?.readyState === WebSocket.OPEN;
   }
 
-  function waitForIceComplete(peer) {
+  function waitForIceComplete(peer, maxMs = 2000) {
     if (peer.iceGatheringState === "complete") return Promise.resolve();
     return new Promise((resolve) => {
       const done = () => {
@@ -151,40 +153,65 @@
         }
       };
       peer.addEventListener("icegatheringstatechange", done);
-      setTimeout(resolve, 4000);
+      setTimeout(resolve, maxMs);
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // WebRTC session (Vercel — browser connects direct to Inworld, no Railway)
-  // ---------------------------------------------------------------------------
-  async function connectWebRTC() {
-    if (connected && sessionReady) return;
-    cleanupTransport();
-
-    transport = "webrtc";
-    emit("voice:connecting");
-
+  async function fetchWebRTCConfig() {
     const cfgRes = await fetch("/api/webrtc-config", { cache: "no-store" });
     if (!cfgRes.ok) {
       const err = await cfgRes.json().catch(() => ({}));
       throw new Error(err.error || "Voice API not configured — set INWORLD_API_KEY on Vercel");
     }
-    const cfgData = await cfgRes.json();
-    console.info("[Voice] WebRTC mode → Inworld Realtime");
+    webrtcCfg = await cfgRes.json();
+    return webrtcCfg;
+  }
 
-    if (!micStream) {
-      const micOk = await requestMic();
-      if (!micOk) throw new Error("microphone-unavailable");
+  async function signalWebRTC(cfgData) {
+    const res = await fetch(cfgData.callsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/sdp",
+        Authorization: `Bearer ${cfgData.token}`,
+      },
+      body: pc.localDescription.sdp,
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`Inworld WebRTC failed (${res.status}): ${t.slice(0, 120)}`);
+    }
+    await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebRTC session (Vercel — browser connects direct to Inworld, no Railway)
+  // ---------------------------------------------------------------------------
+  async function connectWebRTC(options = {}) {
+    const withMic = options.withMic !== false;
+
+    if (connected && sessionReady) {
+      if (withMic && micStream) await attachWebRTCMic();
+      return;
     }
 
-    await unlockAudio();
+    cleanupTransport();
+    transport = "webrtc";
+    emit("voice:connecting");
+
+    const cfgData = webrtcCfg || (await fetchWebRTCConfig());
+    console.info("[Voice] WebRTC", withMic ? "connect" : "warm");
+
+    if (withMic && !micStream) {
+      const micOk = await requestMic();
+      if (!micOk) throw new Error("microphone-unavailable");
+      await unlockAudio();
+    }
 
     return new Promise((resolve, reject) => {
       let settled = false;
       let timeoutId = setTimeout(() => {
         if (!settled) fail("Connection timed out");
-      }, 25000);
+      }, 22000);
 
       const succeed = () => {
         if (settled) return;
@@ -204,7 +231,9 @@
       pc = new RTCPeerConnection({ iceServers: cfgData.ice_servers || [] });
       dc = pc.createDataChannel("oai-events", { ordered: true });
 
-      micStream.getAudioTracks().forEach((t) => pc.addTrack(t, micStream));
+      if (withMic && micStream) {
+        micStream.getAudioTracks().forEach((t) => pc.addTrack(t, micStream));
+      }
 
       pc.ontrack = (e) => {
         if (!remoteAudioEl) {
@@ -224,7 +253,7 @@
 
       dc.onopen = () => {
         connected = true;
-        audioUnlocked = true;
+        if (withMic) audioUnlocked = true;
       };
 
       dc.onmessage = (ev) => {
@@ -247,28 +276,33 @@
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           await waitForIceComplete(pc);
-
-          const res = await fetch(cfgData.callsUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/sdp",
-              Authorization: `Bearer ${cfgData.token}`,
-            },
-            body: pc.localDescription.sdp,
-          });
-
-          if (!res.ok) {
-            const t = await res.text();
-            fail(`Inworld WebRTC failed (${res.status}): ${t.slice(0, 120)}`);
-            return;
-          }
-
-          await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
+          await signalWebRTC(cfgData);
         } catch (err) {
           fail(err.message || "WebRTC setup failed");
         }
       })();
     });
+  }
+
+  async function attachWebRTCMic() {
+    if (!micStream || !pc) return false;
+    await unlockAudio();
+
+    const hasAudio = pc.getSenders().some((s) => s.track?.kind === "audio");
+    if (!hasAudio) {
+      micStream.getAudioTracks().forEach((t) => pc.addTrack(t, micStream));
+      const cfgData = webrtcCfg || (await fetchWebRTCConfig());
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await waitForIceComplete(pc);
+      await signalWebRTC(cfgData);
+    }
+
+    micStream.getAudioTracks().forEach((t) => {
+      t.enabled = true;
+    });
+    emit("voice:mic:streaming");
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -345,11 +379,19 @@
 
   function connect() {
     if (connected && sessionReady) return Promise.resolve();
-    return ensureRuntimeConfig().then(() => {
-      if (useWebRTC()) return connectWebRTC();
-      transport = "ws";
-      return connectWs();
-    });
+    if (connectPromise) return connectPromise;
+
+    connectPromise = ensureRuntimeConfig()
+      .then(() => {
+        if (useWebRTC()) return connectWebRTC({ withMic: false });
+        transport = "ws";
+        return connectWs();
+      })
+      .finally(() => {
+        connectPromise = null;
+      });
+
+    return connectPromise;
   }
 
   async function handleServerMessage(msg, onReady, onFail) {
@@ -427,12 +469,13 @@
 
   function maybeStartConversation() {
     if (!sessionReady || !audioUnlocked || !micStream || greetingSent) return;
+    if (cfg.MODE !== "companion") return;
     greetingSent = true;
     promptGreeting();
   }
 
   function promptGreeting() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!isTransportOpen()) return;
     const casino = cfg.MODE !== "companion";
     const text = casino
       ? "Hey Yuki! I'm at the roulette table — say a quick friendly hello!"
@@ -538,6 +581,25 @@
     emit("voice:session:live");
   }
 
+  /** Pre-connect voice on page load (no mic until user taps). */
+  async function warmSession() {
+    if (!isVoiceConfigured()) return;
+    await ensureRuntimeConfig();
+    if (useWebRTC()) {
+      try {
+        await fetchWebRTCConfig();
+      } catch (err) {
+        console.warn("[Voice] config prefetch failed:", err.message);
+      }
+    }
+    if (connected && sessionReady) return;
+    try {
+      await connect();
+    } catch (err) {
+      console.warn("[Voice] warmSession failed:", err.message);
+    }
+  }
+
   async function enableMicCapture() {
     if (processor && micStream) return true;
 
@@ -552,8 +614,7 @@
   async function attachMicCapture() {
     if (!micStream) return false;
     if (transport === "webrtc") {
-      await unlockAudio();
-      maybeStartConversation();
+      await attachWebRTCMic();
       return true;
     }
     await unlockAudio();
@@ -592,8 +653,19 @@
     await unlockAudio();
     const micOk = await requestMic();
     if (!micOk) throw new Error("microphone-unavailable");
-    await ensureSession();
-    await attachMicCapture();
+
+    if (connectPromise) await connectPromise;
+
+    if (sessionReady && transport === "webrtc") {
+      await attachWebRTCMic();
+    } else if (sessionReady && transport === "ws") {
+      await attachMicCapture();
+    } else if (useWebRTC()) {
+      await connectWebRTC({ withMic: true });
+    } else {
+      await ensureSession();
+      await attachMicCapture();
+    }
     return true;
   }
 
@@ -961,6 +1033,7 @@
     connect,
     disconnect,
     ensureSession,
+    warmSession,
     ensureRuntimeConfig,
     unlockAudio,
     enableMicCapture,

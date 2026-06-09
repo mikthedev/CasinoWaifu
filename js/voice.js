@@ -512,7 +512,16 @@
 
     notifyGameEvent(type, payload);
 
-    if (type === "IDLE" || muted || userSpeaking || agentSpeaking) return false;
+    if (type === "IDLE" || muted) return false;
+
+    // Casino outcomes take priority over ambient mic / ongoing speech
+    if (agentSpeaking) {
+      interruptPlayback();
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "response.cancel" }));
+      }
+    }
+    userSpeaking = false;
 
     const prompts = {
       WIN: `[Roulette win! +${payload.amount} credits on ${payload.color} ${payload.number}. React out loud — brief, happy, hyped!]`,

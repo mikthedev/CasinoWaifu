@@ -27,6 +27,11 @@
   let reconnectTimer = null;
   let idleTimer = null;
   let talkPromptTimer = null;
+  let reactionUntil = 0;
+
+  function inGameReaction() {
+    return Date.now() < reactionUntil;
+  }
 
   function getBar() {
     return document.getElementById("yuki-widget");
@@ -297,9 +302,18 @@
   }
 
   function showReaction(reaction, eventType, payload = {}) {
+    reactionUntil = Date.now() + 3400;
     returnEmotion = reaction.emotion;
     setEmotion(reaction.emotion);
     if (window.CharacterMemory) window.CharacterMemory.setMood(reaction.emotion);
+
+    const canVoice = !userMuted && voiceActive && window.Voice.isConnected();
+    let voiceReacted = false;
+    if (canVoice && eventType !== "IDLE") {
+      voiceReacted = window.Voice.reactToGameEvent(eventType, payload);
+    } else if (canVoice) {
+      window.Voice.notifyGameEvent(eventType, payload);
+    }
 
     if (isHidden) {
       if (eventType === "IDLE") {
@@ -309,16 +323,15 @@
       }
     } else if (isCompanion) {
       toast(reaction.line, eventClass(eventType), 3500);
+    } else if (eventType !== "IDLE" && !voiceReacted) {
+      toast(reaction.line, eventClass(eventType), eventType === "BIG_WIN" ? 3200 : 2600);
     }
 
-    if (!userMuted && voiceActive && window.Voice.isConnected() && eventType !== "IDLE") {
-      window.Voice.reactToGameEvent(eventType, payload);
-    } else if (!userMuted && window.Voice.isConnected()) {
-      window.Voice.notifyGameEvent(eventType, payload);
-    }
+    if (!isHidden && eventType !== "IDLE") nudge();
+    if (eventType === "BIG_WIN" && !isHidden) burstConfetti();
 
-    const restoreMs = 3200;
     setTimeout(() => {
+      if (inGameReaction()) return;
       if (voiceActive && !userMuted) {
         if (ui.root.classList.contains("speaking")) setEmotion(E.TALKING);
         else if (micEnabled) setEmotion(E.LISTENING);
@@ -326,7 +339,7 @@
       } else if (!isHidden) {
         setEmotion(E.IDLE);
       }
-    }, restoreMs);
+    }, 3400);
   }
 
   function wireEvents() {
@@ -334,14 +347,12 @@
       bus.onRoulette(({ type, payload }) => {
         if (window.CharacterMemory) window.CharacterMemory.recordOutcome(type, payload);
         const reaction = window.Character.reactToOutcome(type, payload);
-        if (type === "BIG_WIN" && !isHidden) burstConfetti();
-        if (type === "IDLE" && !isHidden) nudge();
         showReaction(reaction, type, payload);
       });
     }
 
     bus.on("voice:connecting", () => {
-      if (!isHidden) setEmotion(E.THINKING);
+      if (!isHidden && !inGameReaction()) setEmotion(E.THINKING);
     });
 
     bus.on("voice:ready", () => {
@@ -349,7 +360,7 @@
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
-      if (micEnabled && !isHidden) setEmotion(E.LISTENING);
+      if (micEnabled && !isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
     bus.on("voice:closed", () => {
@@ -368,7 +379,7 @@
 
     bus.on("voice:listening:start", () => {
       ui.root.classList.add("listening");
-      if (!isHidden) setEmotion(E.LISTENING);
+      if (!isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
     bus.on("voice:listening:stop", () => {
@@ -377,7 +388,7 @@
     });
 
     bus.on("voice:thinking:start", () => {
-      if (!isHidden) setEmotion(E.THINKING);
+      if (!isHidden && !inGameReaction()) setEmotion(E.THINKING);
     });
 
     bus.on("voice:level", ({ level }) => {
@@ -386,12 +397,12 @@
 
     bus.on("voice:speaking:start", () => {
       ui.root.classList.add("speaking");
-      if (!isHidden) setEmotion(E.TALKING);
+      if (!isHidden && !inGameReaction()) setEmotion(E.TALKING);
     });
 
     bus.on("voice:speaking:stop", () => {
       ui.root.classList.remove("speaking");
-      if (!isHidden && voiceActive && micEnabled) setEmotion(E.LISTENING);
+      if (!isHidden && voiceActive && micEnabled && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
     // No transcript bubbles in casino visible mode

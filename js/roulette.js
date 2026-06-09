@@ -162,9 +162,11 @@
         payout = chip * 36; // 35:1 + stake back
         big = true;
       }
-    } else if (betType === color) {
-      won = true;
-      payout = chip * 2;
+    } else if (betType === "red" || betType === "black") {
+      if (color === betType) {
+        won = true;
+        payout = chip * 2;
+      }
     }
 
     balance += payout;

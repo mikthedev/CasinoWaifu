@@ -133,11 +133,8 @@
   z-index: 3;
 }
 
-.yuki-root.yuki-hidden .yuki-toast {
-  display: block;
-}
-
 .yuki-toast.show {
+  display: block;
   opacity: 1;
   transform: translateY(0);
 }

@@ -91,6 +91,11 @@
   }
 
   function voiceServerHealthUrl() {
+    const rt = window.YUKI_RUNTIME || {};
+    if (rt.voiceBackendUrl) {
+      return `${rt.voiceBackendUrl.replace(/\/$/, "")}/health`;
+    }
+
     const voicePort = Number(cfg.REALTIME?.port) || 8787;
     const host = window.location.hostname;
     const pagePort = window.location.port ? Number(window.location.port) : null;
@@ -102,13 +107,21 @@
     return `${base}/health`;
   }
 
+  function isVoiceConfigured() {
+    return window.YUKI_isVoiceConfigured?.() ?? !!(wsUrl());
+  }
+
+  async function ensureRuntimeConfig() {
+    if (window.YUKI_loadRuntime) await window.YUKI_loadRuntime();
+  }
+
   // ---------------------------------------------------------------------------
   // WebSocket session
   // ---------------------------------------------------------------------------
   function connect() {
     if (connected && sessionReady) return Promise.resolve();
     cleanupWs();
-    return new Promise((resolve, reject) => {
+    return ensureRuntimeConfig().then(() => new Promise((resolve, reject) => {
       let settled = false;
       let timeoutId = null;
 
@@ -167,7 +180,7 @@
       timeoutId = setTimeout(() => {
         if (!settled) fail("Connection timed out");
       }, 20000);
-    });
+    }));
   }
 
   async function handleServerMessage(msg, onReady, onFail) {
@@ -310,14 +323,19 @@
 
   /** Must run inside a user gesture (tap/click) to unlock browser audio + mic. */
   async function unlockAudio() {
-    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)();
-    playbackCtx = playbackCtx || captureCtx;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return false;
+
+    captureCtx = captureCtx || new Ctx({ latencyHint: "interactive" });
+    // Separate playback context — Arc/Chromium forks can suspend shared contexts
+    playbackCtx = playbackCtx || new Ctx({ latencyHint: "playback" });
+
     try {
       if (captureCtx.state === "suspended") await captureCtx.resume();
       if (playbackCtx.state === "suspended") await playbackCtx.resume();
-      audioUnlocked = true;
+      audioUnlocked = captureCtx.state === "running" || playbackCtx.state === "running";
       maybeStartConversation();
-      return true;
+      return audioUnlocked;
     } catch (err) {
       console.warn("[Voice] unlockAudio failed:", err);
       return false;
@@ -354,10 +372,9 @@
 
   /** Keep AudioContext + mic tracks alive (required on mobile Chrome/Safari). */
   async function resumeMicPipeline() {
-    captureCtx = captureCtx || new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint: "interactive",
-    });
-    playbackCtx = playbackCtx || captureCtx;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    captureCtx = captureCtx || new Ctx({ latencyHint: "interactive" });
+    playbackCtx = playbackCtx || new Ctx({ latencyHint: "playback" });
 
     if (captureCtx.state === "suspended") {
       try { await captureCtx.resume(); } catch (err) {
@@ -400,35 +417,46 @@
   async function requestMic() {
     if (micStream) return true;
     if (!navigator.mediaDevices?.getUserMedia) {
-      emit("voice:mic:denied", { error: "getUserMedia unavailable" });
+      emit("voice:mic:denied", { error: "getUserMedia unavailable", code: "unsupported" });
       return false;
     }
-    const host = location.hostname;
-    const local = host === "localhost" || host === "127.0.0.1";
+    const local = window.YUKI_isLocalHost?.() ?? (location.hostname === "localhost" || location.hostname === "127.0.0.1");
     if (!window.isSecureContext && !local) {
       emit("voice:mic:denied", {
-        error: "Microphone requires HTTPS when not on localhost. Use https or test on this computer.",
+        error: "Microphone requires HTTPS when not on localhost.",
+        code: "insecure",
       });
       return false;
     }
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
+
+    const attempts = [
+      {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
         },
-      });
-      emit("voice:mic:granted");
-      return true;
-    } catch (err) {
-      console.warn("[Voice] Mic denied/failed:", err);
-      emit("voice:mic:denied", {
-        error: String(err),
-        name: err?.name || "Error",
-      });
-      return false;
+      },
+      { audio: true },
+    ];
+
+    for (const constraints of attempts) {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia(constraints);
+        emit("voice:mic:granted");
+        return true;
+      } catch (err) {
+        console.warn("[Voice] getUserMedia failed:", constraints, err?.name, err?.message);
+        if (constraints.audio === true) {
+          emit("voice:mic:denied", {
+            error: err?.message || String(err),
+            name: err?.name || "Error",
+            code: err?.name === "NotAllowedError" ? "denied" : "failed",
+          });
+        }
+      }
     }
+    return false;
   }
 
   async function startMicCapture() {
@@ -727,15 +755,16 @@
   }
 
   async function checkVoiceServer() {
+    await ensureRuntimeConfig();
     try {
       const res = await fetch(voiceServerHealthUrl(), { cache: "no-store" });
-      if (!res.ok) return { reachable: false, hasBackend: false };
+      if (!res.ok) return { reachable: false, hasBackend: false, configured: isVoiceConfigured() };
       const data = await res.json();
-      const voiceBackend = !!(window.YUKI_RUNTIME?.voiceBackend);
-      const hasBackend = !!(data?.inworld || data?.voiceProxy || voiceBackend);
-      return { reachable: true, hasBackend, voiceBackend, ...data };
+      const configured = isVoiceConfigured();
+      const hasBackend = !!(data?.inworld || data?.voiceProxy || configured);
+      return { reachable: true, hasBackend, configured, ...data };
     } catch (_) {
-      return { reachable: false, hasBackend: false };
+      return { reachable: false, hasBackend: false, configured: isVoiceConfigured() };
     }
   }
 
@@ -743,6 +772,7 @@
     connect,
     disconnect,
     ensureSession,
+    ensureRuntimeConfig,
     unlockAudio,
     enableMicCapture,
     attachMicCapture,
@@ -750,6 +780,7 @@
     toggleSession,
     isConnected: () => connected && sessionReady,
     hasMic: () => !!micStream,
+    isVoiceConfigured,
     checkVoiceServer,
     voiceServerHealthUrl,
     wsUrl,

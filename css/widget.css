@@ -178,7 +178,8 @@
 }
 
 /* ---- character --------------------------------------------------------- */
-.yuki-char-wrap {
+.yuki-char-wrap,
+.yuki-tap-target {
   position: relative;
   height: var(--yuki-h);
   width: auto;
@@ -186,6 +187,10 @@
   cursor: pointer;
   animation: floaty 4.5s ease-in-out infinite;
   transform-origin: 50% 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .yuki-root.yuki-hidden .yuki-char-wrap {

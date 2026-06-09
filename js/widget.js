@@ -58,6 +58,11 @@
 
     bindUI();
     wireEvents();
+    bootVoice();
+  }
+
+  async function bootVoice() {
+    if (window.YUKI_loadRuntime) await window.YUKI_loadRuntime();
 
     if (isCompanion) {
       setEmotion(E.HAPPY);
@@ -72,16 +77,32 @@
     }
   }
 
+  function voiceConfigHint(status) {
+    if (window.YUKI_isVoiceConfigured?.()) return null;
+    if (status?.hasInworldKeyOnVercel) {
+      return "INWORLD_API_KEY on Vercel isn't enough — add VOICE_BACKEND_URL (Railway URL), redeploy";
+    }
+    return "Add VOICE_BACKEND_URL on Vercel = your Railway URL, then redeploy";
+  }
+
   async function checkVoiceAvailability() {
     if (!window.Voice?.checkVoiceServer) return;
+    let config = {};
+    if (window.YUKI_isHosted?.()) {
+      try {
+        const r = await fetch("/api/voice-config", { cache: "no-store" });
+        if (r.ok) config = await r.json();
+      } catch (_) {}
+    }
     const status = await window.Voice.checkVoiceServer();
-    const onVercel = location.hostname.includes("vercel.app");
-    const hasWs = !!(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl);
-    if (onVercel && !hasWs) {
-      toast("Voice needs VOICE_BACKEND_URL on Vercel → redeploy", "info", 8000);
-    } else if (onVercel && hasWs && !status.reachable) {
-      toast("Voice server unreachable — check Railway is running", "info", 6000);
-    } else if (!status.reachable && !onVercel) {
+    const hosted = window.YUKI_isHosted?.() ?? false;
+    const configured = window.YUKI_isVoiceConfigured?.() ?? !!config.voiceBackend;
+
+    if (hosted && !configured) {
+      toast(voiceConfigHint(config) || "Voice not configured on host", "info", 9000);
+    } else if (hosted && configured && !status.reachable) {
+      toast("Voice server unreachable — is Railway running?", "info", 6000);
+    } else if (!status.reachable && !hosted) {
       toast("Voice server offline — run npm start", "info", 5000);
     }
   }
@@ -113,13 +134,11 @@
           <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
           <div class="yuki-row">
             <button class="yc-btn mute side" id="btn-mute" aria-label="Mute Yuki">🔊</button>
-            <div class="yuki-body">
-              <div class="yuki-char-wrap" id="yuki-char-wrap" title="Tap to enable mic">
-                <div class="yuki-glow"></div>
-                <div class="listen-ring" id="listen-ring"></div>
-                <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" />
-              </div>
-            </div>
+            <button type="button" class="yuki-body yuki-char-wrap yuki-tap-target" id="yuki-char-wrap" title="Tap to enable mic">
+              <div class="yuki-glow"></div>
+              <div class="listen-ring" id="listen-ring"></div>
+              <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" draggable="false" />
+            </button>
             <button class="yc-btn hide side" id="btn-hide" aria-label="Hide Yuki">Hide</button>
           </div>
         </div>
@@ -137,11 +156,10 @@
 
   async function initCasinoVoice() {
     if (userMuted) return;
-    const onVercel = location.hostname.includes("vercel.app");
-    const hasWs = !!(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl);
-    if (onVercel && !hasWs) return;
+    if (window.YUKI_isHosted?.() && !window.YUKI_isVoiceConfigured?.()) return;
 
     try {
+      await window.Voice.ensureRuntimeConfig();
       await window.Voice.ensureSession();
       voiceActive = true;
       reconnectAttempt = 0;
@@ -168,6 +186,7 @@
     connecting = true;
     setEmotion(E.THINKING);
     try {
+      await window.Voice.ensureRuntimeConfig();
       await window.Voice.startSession();
       micEnabled = true;
       voiceActive = true;
@@ -177,11 +196,11 @@
     } catch (err) {
       console.warn("[Widget] char tap voice failed:", err);
       setEmotion(E.WORRIED);
-      const onVercel = location.hostname.includes("vercel.app");
-      if (onVercel && !(window.YUKI_RUNTIME?.wsUrl || window.YUKI_RUNTIME?.voiceBackendUrl)) {
-        toast("Set VOICE_BACKEND_URL on Vercel, redeploy", "info", 6000);
+      const hosted = window.YUKI_isHosted?.() ?? false;
+      if (hosted && !window.YUKI_isVoiceConfigured?.()) {
+        toast(voiceConfigHint() || "Set VOICE_BACKEND_URL on Vercel", "info", 7000);
       } else if (String(err?.message || err).includes("microphone")) {
-        toast("Allow mic in browser settings", "info", 4500);
+        toast("Allow mic: click lock icon in address bar → Microphone", "info", 5500);
       } else {
         toast("Voice failed — check Railway server", "info", 4500);
       }
@@ -455,10 +474,10 @@
       connecting = false;
       if (!userMuted && autoVoice) scheduleReconnect();
       const msg = message || "Voice unavailable";
-      const onVercel = location.hostname.includes("vercel.app");
+      const hosted = window.YUKI_isHosted?.() ?? false;
       if (msg.includes("not configured") || msg.includes("VOICE_BACKEND")) {
-        toast("Voice: set VOICE_BACKEND_URL on Vercel → redeploy", "info", 7000);
-      } else if (onVercel && (msg.includes("unreachable") || msg.includes("closed") || msg.includes("timed out"))) {
+        toast(voiceConfigHint() || "Voice not configured", "info", 7000);
+      } else if (hosted && (msg.includes("unreachable") || msg.includes("closed") || msg.includes("timed out"))) {
         toast("Voice server offline — check Railway deploy", "info", 6000);
       } else if (msg.includes("unreachable") || msg.includes("closed") || msg.includes("timed out")) {
         toast("Voice server offline — run npm start locally", "info", 5000);
@@ -497,6 +516,18 @@
 
     // No transcript bubbles in casino visible mode
     bus.on("voice:transcript", () => {});
+
+    bus.on("voice:mic:denied", ({ code }) => {
+      micEnabled = false;
+      setEmotion(E.WORRIED);
+      if (code === "denied") {
+        toast("Mic blocked — allow in browser site settings (Arc: lock icon → Microphone)", "info", 6000);
+      } else if (code === "insecure") {
+        toast("Mic needs HTTPS or localhost", "info", 4000);
+      } else {
+        toast("Mic unavailable — check browser permissions", "info", 4500);
+      }
+    });
 
     bus.on("voice:mic:granted", () => {
       micEnabled = true;

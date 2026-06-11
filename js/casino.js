@@ -35,8 +35,22 @@
   const navBtns   = document.querySelectorAll(".nav-btn[data-goto]");
   const yukiWidget = document.getElementById("yuki-widget");
 
+  function isMobileViewport() {
+    return window.matchMedia("(max-width: 480px)").matches;
+  }
+
   function placeYuki(game) {
     if (!yukiWidget) return;
+
+    if (isMobileViewport()) {
+      // On mobile Yuki lives in the fixed #yuki-widget-host overlay so she
+      // stays visible above any fullscreen game or iframe. Mark the body so
+      // CSS can hide the now-empty in-flow slots.
+      document.body.classList.add("yuki-overlay-mode");
+      return;
+    }
+
+    document.body.classList.remove("yuki-overlay-mode");
     const slot = document.querySelector(`.yuki-slot[data-game="${game}"]`);
     if (slot && slot !== yukiWidget.parentElement) {
       slot.appendChild(yukiWidget);
@@ -80,6 +94,9 @@
     screens.forEach(s => s.classList.toggle("active", s.dataset.screen === _active));
     navBtns.forEach(b => b.classList.toggle("active", b.dataset.goto === _active));
     placeYuki(_active);
+
+    // Re-evaluate overlay vs slot placement on orientation / resize changes
+    window.addEventListener("resize", () => placeYuki(_active));
   }
 
   if (document.readyState === "loading") {

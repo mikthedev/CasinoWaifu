@@ -228,8 +228,10 @@
       </main>
     </div><!-- /device-frame -->
 
-    <!-- Yuki widget — casino.js moves it into the active yuki-slot -->
-    <div id="yuki-widget" class="yuki-bar" aria-label="Yuki companion"></div>
+    <!-- Yuki widget — fixed overlay on mobile; casino.js slots it on desktop -->
+    <div id="yuki-widget-host" class="yuki-widget-host">
+      <div id="yuki-widget" class="yuki-bar" aria-label="Yuki companion"></div>
+    </div>
 
     <script src="js/runtime.js"></script>
     <script src="js/config.js"></script>

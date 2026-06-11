@@ -367,3 +367,60 @@
     animation: none !important;
   }
 }
+
+/* ============================================================================
+   Controls base — talk / mute buttons outside companion-mode
+   ========================================================================== */
+.yuki-controls {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  pointer-events: none;
+}
+
+/* Buttons must always receive taps regardless of parent pointer-events */
+.yc-btn.talk,
+.yc-btn.mute {
+  pointer-events: auto;
+}
+
+/* ============================================================================
+   Floating overlay host — position: fixed so Yuki stays above fullscreen
+   iframes and game screens. Applied on mobile only; desktop keeps the
+   in-flow slot placement managed by casino.js.
+   ========================================================================== */
+@media (max-width: 480px) {
+  .yuki-widget-host {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    bottom: 68px; /* above the 58px game-nav + 10px gap */
+    right: 10px;
+    width: 120px;
+  }
+
+  /* Let glow / confetti overflow the bar bounds */
+  .yuki-widget-host #yuki-widget {
+    overflow: visible;
+    min-height: auto !important;
+    padding: 0;
+    width: 100%;
+  }
+
+  /* Tighten slot-sized buttons for overlay context */
+  .yuki-widget-host .yc-btn.talk,
+  .yuki-widget-host .yc-btn.mute {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 16px;
+    padding: 0;
+  }
+
+  /* Hide the now-empty in-flow slot so it leaves no dead space */
+  .yuki-overlay-mode .yuki-slot--bar {
+    display: none !important;
+  }
+}

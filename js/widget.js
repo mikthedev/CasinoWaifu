@@ -33,10 +33,6 @@
   let talkPromptTimer = null;
   let reactionUntil   = 0;
 
-  // ── Popup state (mobile overlay) ────────────────────────────────────────────
-  let popupVisible = false;
-  let popupTimer   = null;
-
   function isMobileOverlay() {
     return window.innerWidth <= 480;
   }
@@ -63,7 +59,7 @@
     ui.hide     = document.getElementById("btn-hide");
     ui.ring     = document.getElementById("listen-ring");
     ui.charWrap = document.getElementById("yuki-char-wrap");
-    ui.popup    = document.getElementById("yuki-popup");
+    ui.popup    = null; // no longer used (buttons are inline side elements)
 
     bindUI();
     wireEvents();
@@ -97,25 +93,21 @@
         <div class="yuki-stage">
           <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
 
-          <!--
-            Popup buttons:
-            - Desktop: small circles overlaid at the base of the character (always visible).
-            - Mobile overlay: pill buttons above character, hidden until Yuki is tapped.
-          -->
-          <div class="yuki-popup" id="yuki-popup">
-            <button class="yuki-pop-btn pop-mute" id="btn-mute" aria-label="Mute Yuki">
-              <span class="pop-icon">🔊</span><span class="pop-label"> Mute</span>
-            </button>
-            <button class="yuki-pop-btn pop-hide" id="btn-hide" aria-label="Hide Yuki">
-              <span class="pop-icon">👁</span><span class="pop-label"> Hide</span>
-            </button>
-          </div>
-
           <div class="yuki-row">
+            <!-- Mute button — left side -->
+            <button class="yuki-side-btn yuki-side-mute" id="btn-mute" aria-label="Mute Yuki">
+              <span class="pop-icon">🔊</span>
+            </button>
+
             <button type="button" class="yuki-body yuki-char-wrap yuki-tap-target" id="yuki-char-wrap" title="Tap Yuki">
               <div class="yuki-glow"></div>
               <div class="listen-ring" id="listen-ring"></div>
               <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" draggable="false" />
+            </button>
+
+            <!-- Hide button — right side -->
+            <button class="yuki-side-btn yuki-side-hide" id="btn-hide" aria-label="Hide Yuki">
+              <span class="pop-icon">👁</span>
             </button>
           </div>
         </div>
@@ -127,39 +119,22 @@
     if (ui.talk) ui.talk.addEventListener("click", onTalk);
 
     if (ui.mute) {
-      ui.mute.addEventListener("click", () => {
+      ui.mute.addEventListener("click", e => {
+        e.stopPropagation(); // prevent bubbling to host drag/mini handler
         toggleMute();
-        if (isMobileOverlay()) hidePopup();
       });
     }
 
     if (ui.hide) {
-      ui.hide.addEventListener("click", () => {
+      ui.hide.addEventListener("click", e => {
+        e.stopPropagation(); // critical: prevents host click from immediately un-hiding
         toggleHide();
-        if (isMobileOverlay()) hidePopup();
       });
     }
 
     if (ui.charWrap && !isCompanion) {
       ui.charWrap.addEventListener("click", onCharTap);
     }
-  }
-
-  // ── Popup show / hide ────────────────────────────────────────────────────────
-  function showPopup() {
-    if (!ui.popup) return;
-    clearTimeout(popupTimer);
-    ui.popup.classList.add("visible");
-    popupVisible = true;
-    popupTimer = setTimeout(hidePopup, 3500);
-  }
-
-  function hidePopup() {
-    if (!ui.popup) return;
-    ui.popup.classList.remove("visible");
-    popupVisible = false;
-    clearTimeout(popupTimer);
-    popupTimer = null;
   }
 
   // ── Mobile drag ──────────────────────────────────────────────────────────────
@@ -196,7 +171,6 @@
       if (!dragging && (Math.abs(dx) > THRESH || Math.abs(dy) > THRESH)) {
         dragging = true;
         toAbsolute();
-        hidePopup();
       }
 
       if (!dragging) return;
@@ -210,9 +184,9 @@
 
     host.addEventListener("touchend", () => { dragging = false; });
 
-    // Tap on mini-badge restores Yuki
-    host.addEventListener("click", () => {
-      if (host.classList.contains("yuki-mini")) {
+    // Tap on mini-badge restores Yuki (only direct tap on host, not bubbled)
+    host.addEventListener("click", e => {
+      if (e.target === host && host.classList.contains("yuki-mini")) {
         toggleHide();
       }
     });
@@ -280,16 +254,7 @@
 
   // ── Character tap ─────────────────────────────────────────────────────────────
   async function onCharTap() {
-    // Mobile: toggle popup menu (drag detection prevents tap during drag)
-    if (isMobileOverlay()) {
-      if (popupVisible) {
-        hidePopup();
-      } else {
-        showPopup();
-      }
-    }
-
-    // Voice activation (all platforms)
+    // Voice activation
     if (isHidden || userMuted || connecting) return;
     connecting = true;
     setEmotion(E.LISTENING);
@@ -349,16 +314,16 @@
       micEnabled  = false;
       document.body.classList.remove("voice-live");
       if (ui.mute) {
-        ui.mute.querySelector(".pop-icon").textContent = "🔇";
-        ui.mute.querySelector(".pop-label").textContent = " Muted";
+        const icon = ui.mute.querySelector(".pop-icon");
+        if (icon) icon.textContent = "🔇";
         ui.mute.classList.add("is-muted");
       }
       setEmotion(E.IDLE);
       if (isHidden) toast("Yuki paused", "info", 2500);
     } else {
       if (ui.mute) {
-        ui.mute.querySelector(".pop-icon").textContent = "🔊";
-        ui.mute.querySelector(".pop-label").textContent = " Mute";
+        const icon = ui.mute.querySelector(".pop-icon");
+        if (icon) icon.textContent = "🔊";
         ui.mute.classList.remove("is-muted");
       }
       reconnectAttempt = 0;
@@ -388,8 +353,8 @@
       if (bar) bar.classList.add("is-collapsed");
       if (host && isMobileOverlay()) host.classList.add("yuki-mini");
       if (ui.hide) {
-        ui.hide.querySelector(".pop-icon").textContent = "✦";
-        ui.hide.querySelector(".pop-label").textContent = " Show";
+        const icon = ui.hide.querySelector(".pop-icon");
+        if (icon) icon.textContent = "✦";
         ui.hide.classList.add("is-hidden-mode");
       }
       startTalkPrompt();
@@ -399,8 +364,8 @@
       if (bar) bar.classList.remove("is-collapsed");
       if (host && isMobileOverlay()) host.classList.remove("yuki-mini");
       if (ui.hide) {
-        ui.hide.querySelector(".pop-icon").textContent = "👁";
-        ui.hide.querySelector(".pop-label").textContent = " Hide";
+        const icon = ui.hide.querySelector(".pop-icon");
+        if (icon) icon.textContent = "👁";
         ui.hide.classList.remove("is-hidden-mode");
       }
       stopTalkPrompt();

@@ -5,6 +5,10 @@
  *   Visible — character + voice, no text bubbles
  *   Hidden  — text toasts only, styled by casino event
  *   Muted   — voice workflow paused until unmuted
+ *
+ * Mobile overlay: Yuki is a draggable fixed bubble.
+ *   Tap Yuki → popup with Mute/Hide appears for 3.5s.
+ *   Drag Yuki → repositions the bubble freely.
  */
 
 (function () {
@@ -16,27 +20,31 @@
   const autoVoice = !isCompanion && cfg.AUTO_VOICE !== false;
 
   const ui = {};
-  let bubbleTimer = null;
-  let returnEmotion = E.IDLE;
-  let voiceActive = false;
-  let micEnabled = false;
-  let connecting = false;
-  let userMuted = false;
-  let isHidden = false;
+  let bubbleTimer     = null;
+  let returnEmotion   = E.IDLE;
+  let voiceActive     = false;
+  let micEnabled      = false;
+  let connecting      = false;
+  let userMuted       = false;
+  let isHidden        = false;
   let reconnectAttempt = 0;
-  let reconnectTimer = null;
-  let idleTimer = null;
+  let reconnectTimer  = null;
+  let idleTimer       = null;
   let talkPromptTimer = null;
-  let reactionUntil = 0;
+  let reactionUntil   = 0;
 
-  function inGameReaction() {
-    return Date.now() < reactionUntil;
+  // ── Popup state (mobile overlay) ────────────────────────────────────────────
+  let popupVisible = false;
+  let popupTimer   = null;
+
+  function isMobileOverlay() {
+    return window.innerWidth <= 480;
   }
 
-  function getBar() {
-    return document.getElementById("yuki-widget");
-  }
+  function inGameReaction() { return Date.now() < reactionUntil; }
+  function getBar()          { return document.getElementById("yuki-widget"); }
 
+  // ── Build ────────────────────────────────────────────────────────────────────
   function build() {
     const mount = document.getElementById("yuki-widget");
     if (!mount) return;
@@ -47,23 +55,172 @@
       buildCasinoWidget(mount);
     }
 
-    ui.root = document.getElementById("yuki-root");
-    ui.char = document.getElementById("yuki-char");
-    ui.toast = document.getElementById("yuki-toast");
-    ui.talk = document.getElementById("btn-talk");
-    ui.mute = document.getElementById("btn-mute");
-    ui.hide = document.getElementById("btn-hide");
-    ui.ring = document.getElementById("listen-ring");
+    ui.root     = document.getElementById("yuki-root");
+    ui.char     = document.getElementById("yuki-char");
+    ui.toast    = document.getElementById("yuki-toast");
+    ui.talk     = document.getElementById("btn-talk");
+    ui.mute     = document.getElementById("btn-mute");
+    ui.hide     = document.getElementById("btn-hide");
+    ui.ring     = document.getElementById("listen-ring");
     ui.charWrap = document.getElementById("yuki-char-wrap");
+    ui.popup    = document.getElementById("yuki-popup");
 
     bindUI();
     wireEvents();
     bootVoice();
+    setupMobileDrag();
   }
 
+  function buildCompanion(mount) {
+    mount.innerHTML = `
+      <div class="yuki-root companion" id="yuki-root" data-emotion="idle">
+        <div class="yuki-stage">
+          <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
+          <div class="yuki-body">
+            <div class="yuki-char-wrap" id="yuki-char-wrap">
+              <div class="yuki-glow"></div>
+              <div class="listen-ring" id="listen-ring"></div>
+              <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" />
+            </div>
+          </div>
+          <div class="yuki-controls">
+            <button class="yc-btn talk" id="btn-talk"><span class="ic">🎤</span><span class="lbl">Talk</span></button>
+            <button class="yc-btn mute" id="btn-mute" aria-label="Mute">🔊 Mute</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function buildCasinoWidget(mount) {
+    mount.innerHTML = `
+      <div class="yuki-root casino-widget" id="yuki-root" data-emotion="idle">
+        <div class="yuki-stage">
+          <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
+
+          <!--
+            Popup buttons:
+            - Desktop: small circles overlaid at the base of the character (always visible).
+            - Mobile overlay: pill buttons above character, hidden until Yuki is tapped.
+          -->
+          <div class="yuki-popup" id="yuki-popup">
+            <button class="yuki-pop-btn pop-mute" id="btn-mute" aria-label="Mute Yuki">
+              <span class="pop-icon">🔊</span><span class="pop-label"> Mute</span>
+            </button>
+            <button class="yuki-pop-btn pop-hide" id="btn-hide" aria-label="Hide Yuki">
+              <span class="pop-icon">👁</span><span class="pop-label"> Hide</span>
+            </button>
+          </div>
+
+          <div class="yuki-row">
+            <button type="button" class="yuki-body yuki-char-wrap yuki-tap-target" id="yuki-char-wrap" title="Tap Yuki">
+              <div class="yuki-glow"></div>
+              <div class="listen-ring" id="listen-ring"></div>
+              <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" draggable="false" />
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ── Bind ─────────────────────────────────────────────────────────────────────
+  function bindUI() {
+    if (ui.talk) ui.talk.addEventListener("click", onTalk);
+
+    if (ui.mute) {
+      ui.mute.addEventListener("click", () => {
+        toggleMute();
+        if (isMobileOverlay()) hidePopup();
+      });
+    }
+
+    if (ui.hide) {
+      ui.hide.addEventListener("click", () => {
+        toggleHide();
+        if (isMobileOverlay()) hidePopup();
+      });
+    }
+
+    if (ui.charWrap && !isCompanion) {
+      ui.charWrap.addEventListener("click", onCharTap);
+    }
+  }
+
+  // ── Popup show / hide ────────────────────────────────────────────────────────
+  function showPopup() {
+    if (!ui.popup) return;
+    clearTimeout(popupTimer);
+    ui.popup.classList.add("visible");
+    popupVisible = true;
+    popupTimer = setTimeout(hidePopup, 3500);
+  }
+
+  function hidePopup() {
+    if (!ui.popup) return;
+    ui.popup.classList.remove("visible");
+    popupVisible = false;
+    clearTimeout(popupTimer);
+    popupTimer = null;
+  }
+
+  // ── Mobile drag ──────────────────────────────────────────────────────────────
+  function setupMobileDrag() {
+    const host = document.querySelector(".yuki-widget-host");
+    if (!host) return;
+
+    let sx = 0, sy = 0, sl = 0, st = 0, dragging = false;
+    const THRESH = 6;
+
+    function toAbsolute() {
+      const r = host.getBoundingClientRect();
+      host.style.right  = "auto";
+      host.style.bottom = "auto";
+      host.style.left   = r.left + "px";
+      host.style.top    = r.top  + "px";
+    }
+
+    host.addEventListener("touchstart", e => {
+      if (!isMobileOverlay()) return;
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY;
+      const r = host.getBoundingClientRect();
+      sl = r.left; st = r.top;
+      dragging = false;
+    }, { passive: true });
+
+    host.addEventListener("touchmove", e => {
+      if (!isMobileOverlay()) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+
+      if (!dragging && (Math.abs(dx) > THRESH || Math.abs(dy) > THRESH)) {
+        dragging = true;
+        toAbsolute();
+        hidePopup();
+      }
+
+      if (!dragging) return;
+      e.preventDefault();
+
+      const maxL = window.innerWidth  - host.offsetWidth;
+      const maxT = window.innerHeight - host.offsetHeight;
+      host.style.left = Math.max(0, Math.min(maxL, sl + dx)) + "px";
+      host.style.top  = Math.max(0, Math.min(maxT, st + dy)) + "px";
+    }, { passive: false });
+
+    host.addEventListener("touchend", () => { dragging = false; });
+
+    // Tap on mini-badge restores Yuki
+    host.addEventListener("click", () => {
+      if (host.classList.contains("yuki-mini")) {
+        toggleHide();
+      }
+    });
+  }
+
+  // ── Voice boot ───────────────────────────────────────────────────────────────
   async function bootVoice() {
     if (window.YUKI_loadRuntime) await window.YUKI_loadRuntime();
-
     if (isCompanion) {
       setEmotion(E.HAPPY);
       toast("Hey! Tap Talk~", "info", 4000);
@@ -92,78 +249,25 @@
         if (r.ok) config = await r.json();
       } catch (_) {}
     }
-    const status = await window.Voice.checkVoiceServer();
-    const hosted = window.YUKI_isHosted?.() ?? false;
+    const status  = await window.Voice.checkVoiceServer();
+    const hosted  = window.YUKI_isHosted?.() ?? false;
     const configured = window.YUKI_isVoiceConfigured?.() ?? !!config.voiceBackend;
 
     if (hosted && !configured) {
       toast(voiceConfigHint(config) || "Add INWORLD_API_KEY on Vercel, then redeploy", "info", 9000);
     } else if (hosted && configured && config.mode === "proxy" && !status.reachable) {
       toast("Voice server unreachable — check Railway is running", "info", 6000);
-    } else if (hosted && configured && config.mode === "webrtc" && !status.reachable) {
-      // WebRTC health is checked via webrtc-config on connect
     } else if (!status.reachable && !hosted) {
       toast("Voice server offline — run npm start", "info", 5000);
-    }
-  }
-
-  function buildCompanion(mount) {
-    mount.innerHTML = `
-      <div class="yuki-root companion" id="yuki-root" data-emotion="idle">
-        <div class="yuki-stage">
-          <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
-          <div class="yuki-body">
-            <div class="yuki-char-wrap" id="yuki-char-wrap">
-              <div class="yuki-glow"></div>
-              <div class="listen-ring" id="listen-ring"></div>
-              <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" />
-            </div>
-          </div>
-          <div class="yuki-controls">
-            <button class="yc-btn talk" id="btn-talk"><span class="ic">🎤</span><span class="lbl">Talk</span></button>
-            <button class="yc-btn mute" id="btn-mute" aria-label="Mute">🔊 Mute</button>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function buildCasinoWidget(mount) {
-    mount.innerHTML = `
-      <div class="yuki-root casino-widget" id="yuki-root" data-emotion="idle">
-        <div class="yuki-stage">
-          <div class="yuki-toast" id="yuki-toast" role="status" aria-live="polite"></div>
-          <div class="yuki-row">
-            <button class="yc-btn mute side" id="btn-mute" aria-label="Mute Yuki">🔊</button>
-            <button type="button" class="yuki-body yuki-char-wrap yuki-tap-target" id="yuki-char-wrap" title="Tap to enable mic">
-              <div class="yuki-glow"></div>
-              <div class="listen-ring" id="listen-ring"></div>
-              <img class="yuki-char" id="yuki-char" src="${sprites.idle}" alt="Yuki" draggable="false" />
-            </button>
-            <button class="yc-btn hide side" id="btn-hide" aria-label="Hide Yuki">Hide</button>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function bindUI() {
-    if (ui.talk) ui.talk.addEventListener("click", onTalk);
-    if (ui.mute) ui.mute.addEventListener("click", toggleMute);
-    if (ui.hide) ui.hide.addEventListener("click", toggleHide);
-    if (ui.charWrap && !isCompanion) {
-      ui.charWrap.addEventListener("click", onCharTap);
     }
   }
 
   async function initCasinoVoice() {
     if (userMuted) return;
     if (window.YUKI_isHosted?.() && !window.YUKI_isVoiceConfigured?.()) return;
-
     try {
       await window.Voice.ensureRuntimeConfig();
-      window.Voice.warmSession().catch((err) => {
-        console.warn("[Widget] voice warm failed:", err);
-        scheduleReconnect();
-      });
+      window.Voice.warmSession().catch(err => { console.warn("[Widget] voice warm failed:", err); scheduleReconnect(); });
       voiceActive = true;
       reconnectAttempt = 0;
       document.body.classList.add("voice-live");
@@ -174,31 +278,32 @@
     }
   }
 
-  async function queryMicGranted() {
-    if (!navigator.permissions?.query) return false;
-    try {
-      const s = await navigator.permissions.query({ name: "microphone" });
-      return s.state === "granted";
-    } catch (_) {
-      return false;
-    }
-  }
-
+  // ── Character tap ─────────────────────────────────────────────────────────────
   async function onCharTap() {
+    // Mobile: toggle popup menu (drag detection prevents tap during drag)
+    if (isMobileOverlay()) {
+      if (popupVisible) {
+        hidePopup();
+      } else {
+        showPopup();
+      }
+    }
+
+    // Voice activation (all platforms)
     if (isHidden || userMuted || connecting) return;
     connecting = true;
     setEmotion(E.LISTENING);
     try {
       await window.Voice.ensureRuntimeConfig();
       await window.Voice.startSession();
-      micEnabled = true;
+      micEnabled  = true;
       voiceActive = true;
       if (ui.charWrap) ui.charWrap.title = "Talking with Yuki";
     } catch (err) {
       console.warn("[Widget] char tap voice failed:", err);
       setEmotion(E.WORRIED);
       const hosted = window.YUKI_isHosted?.() ?? false;
-      const msg = String(err?.message || err);
+      const msg    = String(err?.message || err);
       if (hosted && !window.YUKI_isVoiceConfigured?.()) {
         toast(voiceConfigHint() || "Add INWORLD_API_KEY on Vercel", "info", 7000);
       } else if (msg.includes("microphone")) {
@@ -224,12 +329,15 @@
     setEmotion(E.LISTENING);
   }
 
+  // ── Mute / hide ──────────────────────────────────────────────────────────────
   function toggleMute() {
     if (isCompanion) {
       const muted = window.Voice.setMuted(!window.Voice.isMuted());
-      ui.mute.textContent = muted ? "🔇 Muted" : "🔊 Mute";
-      ui.mute.classList.toggle("is-muted", muted);
-      return;
+      if (ui.mute) {
+        ui.mute.textContent = muted ? "🔇 Muted" : "🔊 Mute";
+        ui.mute.classList.toggle("is-muted", muted);
+      }
+      return;  // companion uses plain textContent (no .pop-icon spans)
     }
 
     userMuted = !userMuted;
@@ -238,15 +346,21 @@
       clearReconnect();
       window.Voice.disconnect();
       voiceActive = false;
-      micEnabled = false;
+      micEnabled  = false;
       document.body.classList.remove("voice-live");
-      ui.mute.textContent = "🔇";
-      ui.mute.classList.add("is-muted");
+      if (ui.mute) {
+        ui.mute.querySelector(".pop-icon").textContent = "🔇";
+        ui.mute.querySelector(".pop-label").textContent = " Muted";
+        ui.mute.classList.add("is-muted");
+      }
       setEmotion(E.IDLE);
       if (isHidden) toast("Yuki paused", "info", 2500);
     } else {
-      ui.mute.textContent = "🔊";
-      ui.mute.classList.remove("is-muted");
+      if (ui.mute) {
+        ui.mute.querySelector(".pop-icon").textContent = "🔊";
+        ui.mute.querySelector(".pop-label").textContent = " Mute";
+        ui.mute.classList.remove("is-muted");
+      }
       reconnectAttempt = 0;
       initCasinoVoice().then(async () => {
         if (!micEnabled) {
@@ -264,22 +378,31 @@
   }
 
   function toggleHide() {
-    const bar = getBar();
+    const bar  = getBar();
+    const host = document.querySelector(".yuki-widget-host");
 
     if (!isHidden) {
       isHidden = true;
       ui.root.classList.remove("yuki-pop");
       ui.root.classList.add("yuki-hidden");
       if (bar) bar.classList.add("is-collapsed");
-      ui.hide.textContent = "Show";
-      ui.hide.classList.add("is-hidden-mode");
+      if (host && isMobileOverlay()) host.classList.add("yuki-mini");
+      if (ui.hide) {
+        ui.hide.querySelector(".pop-icon").textContent = "✦";
+        ui.hide.querySelector(".pop-label").textContent = " Show";
+        ui.hide.classList.add("is-hidden-mode");
+      }
       startTalkPrompt();
     } else {
       isHidden = false;
       ui.root.classList.remove("yuki-hidden");
       if (bar) bar.classList.remove("is-collapsed");
-      ui.hide.textContent = "Hide";
-      ui.hide.classList.remove("is-hidden-mode");
+      if (host && isMobileOverlay()) host.classList.remove("yuki-mini");
+      if (ui.hide) {
+        ui.hide.querySelector(".pop-icon").textContent = "👁";
+        ui.hide.querySelector(".pop-label").textContent = " Hide";
+        ui.hide.classList.remove("is-hidden-mode");
+      }
       stopTalkPrompt();
       clearToast();
 
@@ -327,13 +450,11 @@
       return;
     }
     if (connecting) return;
-
     connecting = true;
-    userMuted = false;
+    userMuted  = false;
     ui.talk.classList.add("active");
     ui.talk.disabled = true;
     setEmotion(E.THINKING);
-
     try {
       await window.Voice.unlockAudio();
       const micOk = await window.Voice.requestMic();
@@ -341,13 +462,12 @@
       await window.Voice.ensureSession();
       await window.Voice.attachMicCapture();
       voiceActive = true;
-      micEnabled = true;
+      micEnabled  = true;
       ui.talk.disabled = false;
       ui.talk.querySelector(".lbl").textContent = "End";
       setEmotion(E.LISTENING);
     } catch (_) {
-      voiceActive = false;
-      micEnabled = false;
+      voiceActive = micEnabled = false;
       ui.talk.disabled = false;
       ui.talk.classList.remove("active");
       ui.talk.querySelector(".lbl").textContent = "Talk";
@@ -358,25 +478,26 @@
     }
   }
 
+  // ── Event wiring ─────────────────────────────────────────────────────────────
   function eventClass(type) {
-    const wins = new Set(["WIN","BIG_WIN","BJ_WIN","BLACKJACK","CRASH_WIN","SLOTS_WIN"]);
-    const jacks= new Set(["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"]);
-    const loses= new Set(["LOSE","BJ_LOSE","BUST","CRASH_LOSE","SLOTS_LOSE"]);
-    if (type === "TALK") return "talk";
-    if (jacks.has(type))  return "big_win";
-    if (wins.has(type))   return "win";
-    if (loses.has(type))  return "lose";
-    if (type === "HIGH")  return "win";
+    const wins  = new Set(["WIN","BIG_WIN","BJ_WIN","BLACKJACK","CRASH_WIN","SLOTS_WIN"]);
+    const jacks = new Set(["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"]);
+    const loses = new Set(["LOSE","BJ_LOSE","BUST","CRASH_LOSE","SLOTS_LOSE"]);
+    if (type === "TALK")        return "talk";
+    if (jacks.has(type))        return "big_win";
+    if (wins.has(type))         return "win";
+    if (loses.has(type))        return "lose";
+    if (type === "HIGH")        return "win";
     return "info";
   }
 
   function showReaction(reaction, eventType, payload = {}) {
-    reactionUntil = Date.now() + 3400;
-    returnEmotion = reaction.emotion;
+    reactionUntil  = Date.now() + 3400;
+    returnEmotion  = reaction.emotion;
     setEmotion(reaction.emotion);
     if (window.CharacterMemory) window.CharacterMemory.setMood(reaction.emotion);
 
-    const canVoice = !userMuted && voiceActive && window.Voice.isConnected();
+    const canVoice  = !userMuted && voiceActive && window.Voice.isConnected();
     let voiceReacted = false;
     if (canVoice && eventType !== "IDLE") {
       voiceReacted = window.Voice.reactToGameEvent(eventType, payload);
@@ -385,11 +506,9 @@
     }
 
     if (isHidden) {
-      if (eventType === "IDLE") {
-        toast("Talk to me", "talk", 5000);
-      } else {
-        toast(reaction.line, eventClass(eventType), eventType === "BIG_WIN" ? 4500 : 3500);
-      }
+      toast(eventType === "IDLE" ? "Talk to me" : reaction.line,
+            eventType === "IDLE" ? "talk" : eventClass(eventType),
+            eventType === "BIG_WIN" ? 4500 : 3500);
     } else if (isCompanion) {
       toast(reaction.line, eventClass(eventType), 3500);
     } else if (eventType !== "IDLE" && !voiceReacted) {
@@ -398,8 +517,7 @@
     }
 
     if (!isHidden && eventType !== "IDLE") nudge();
-    const bigEvents = ["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"];
-    if (bigEvents.includes(eventType) && !isHidden) burstConfetti();
+    if (["BIG_WIN","BLACKJACK","SLOTS_JACKPOT"].includes(eventType) && !isHidden) burstConfetti();
 
     setTimeout(() => {
       if (inGameReaction()) return;
@@ -415,47 +533,35 @@
 
   function wireEvents() {
     if (!isCompanion) {
-      // Roulette
       bus.onRoulette(({ type, payload }) => {
         if (window.CharacterMemory) window.CharacterMemory.recordOutcome(type, payload);
-        const reaction = window.Character.reactToOutcome(type, payload);
-        showReaction(reaction, type, payload);
+        showReaction(window.Character.reactToOutcome(type, payload), type, payload);
       });
 
-      // Blackjack
       bus.on("blackjack:event", ({ type, payload }) => {
         const key = type === "WIN" ? "BJ_WIN" : type === "LOSE" ? "BJ_LOSE" : type;
-        const reaction = window.Character.reactToOutcome(key);
-        showReaction(reaction, key, payload);
+        showReaction(window.Character.reactToOutcome(key), key, payload);
       });
 
-      // Crash
       bus.on("crash:event", ({ type, payload }) => {
         const key = type === "WIN" ? "CRASH_WIN" : type === "LOSE" ? "CRASH_LOSE" : type;
-        const reaction = window.Character.reactToOutcome(key);
-        showReaction(reaction, key, payload);
+        showReaction(window.Character.reactToOutcome(key), key, payload);
       });
 
-      // Slots
       bus.on("slots:event", ({ type, payload }) => {
         const key = type === "JACKPOT" ? "SLOTS_JACKPOT" : type === "WIN" ? "SLOTS_WIN" : "SLOTS_LOSE";
-        const reaction = window.Character.reactToOutcome(key);
-        showReaction(reaction, key, payload);
+        showReaction(window.Character.reactToOutcome(key), key, payload);
       });
 
-      // Sports betting events
       bus.on("sports:event", ({ type, payload }) => {
         const key = type === "WIN" ? "WIN" : "LOSE";
-        const reaction = window.Character.reactToOutcome(key, payload);
-        showReaction(reaction, key, payload);
+        showReaction(window.Character.reactToOutcome(key, payload), key, payload);
       });
 
-      // Widget reaction passthrough (from sports.js)
       bus.on("widget:reaction", ({ reaction, type, payload }) => {
         showReaction(reaction, type, payload);
       });
 
-      // Game switch — greet on arrival
       bus.on("casino:game", ({ game }) => {
         const greets = {
           roulette:  () => showReaction({ emotion: E.HAPPY,    line: "Let's spin~" },     "IDLE", {}),
@@ -471,29 +577,22 @@
     bus.on("voice:connecting", () => {
       if (connecting && !isHidden && !inGameReaction()) setEmotion(E.THINKING);
     });
-
     bus.on("voice:ready", () => {
-      connecting = false;
-      voiceActive = true;
-      reconnectAttempt = 0;
+      connecting = false; voiceActive = true; reconnectAttempt = 0;
       document.body.classList.add("voice-live");
       if (ui.charWrap && !micEnabled) ui.charWrap.title = "Tap Yuki to speak";
       if (micEnabled && !isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
-
     bus.on("voice:closed", () => {
-      voiceActive = false;
-      micEnabled = false;
-      connecting = false;
+      voiceActive = micEnabled = connecting = false;
       document.body.classList.remove("voice-live");
       if (!userMuted && autoVoice) scheduleReconnect();
       else if (!isHidden) setEmotion(E.IDLE);
     });
-
     bus.on("voice:error", ({ message }) => {
       connecting = false;
       if (!userMuted && autoVoice) scheduleReconnect();
-      const msg = message || "Voice unavailable";
+      const msg    = message || "Voice unavailable";
       const hosted = window.YUKI_isHosted?.() ?? false;
       if (msg.includes("not configured") || msg.includes("VOICE_BACKEND")) {
         toast(voiceConfigHint() || "Voice not configured", "info", 7000);
@@ -505,58 +604,45 @@
         toast(msg, "info", 4000);
       }
     });
-
     bus.on("voice:listening:start", () => {
       ui.root.classList.add("listening");
       if (!isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
-
     bus.on("voice:listening:stop", () => {
       ui.root.classList.remove("listening");
       if (ui.ring) ui.ring.style.setProperty("--lvl", 0);
     });
-
     bus.on("voice:thinking:start", () => {
       if (!isHidden && !inGameReaction()) setEmotion(E.THINKING);
     });
-
     bus.on("voice:level", ({ level }) => {
       if (ui.ring) ui.ring.style.setProperty("--lvl", level.toFixed(3));
     });
-
     bus.on("voice:speaking:start", () => {
       ui.root.classList.add("speaking");
       if (!isHidden && !inGameReaction()) setEmotion(E.TALKING);
     });
-
     bus.on("voice:speaking:stop", () => {
       ui.root.classList.remove("speaking");
       if (!isHidden && voiceActive && micEnabled && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
-    // Process user speech for betting intents (no bubbles in casino visible mode)
     bus.on("voice:transcript", ({ text, role } = {}) => {
       if (role !== "user" || !text || isCompanion) return;
-      const t = text.toLowerCase();
+      const t       = text.toLowerCase();
       const onSports = window.Casino?.activeGame === "sports";
 
-      // ── Sports page intents (checked first to avoid early-return issue) ──────
       if (onSports && window.Sports) {
-        // Confirm a pending Yuki suggestion
         if (window.Sports.flowState === "awaiting_pick_confirm") {
           const isConfirm = /\b(yes|sure|ok|okay|go ahead|do it|confirm|fill|yep|yeah|sounds good|let('s| us)|perfect|great)\b/.test(t);
           if (isConfirm) { window.Sports.handleConfirmIntent(); return; }
         }
-
-        // Specific player name mentioned — find and bet on them
         const namedPlayer = window.Sports.findPlayerByName?.(t);
         if (namedPlayer && /\b(bet|pick|choose|want|go with|on|back)\b/.test(t)) {
           window.Sports.handleNamedPlayerIntent(namedPlayer.matchId, namedPlayer.playerId);
           return;
         }
-
-        // Best / recommended player query
-        const isBestQuery = /\b(best|recommend|top|who|suggest|favor|favourite|favorite|advise|should|performing|winning|good|strong)\b/.test(t);
+        const isBestQuery  = /\b(best|recommend|top|who|suggest|favor|favourite|favorite|advise|should|performing|winning|good|strong)\b/.test(t);
         const hasBetContext = /\b(bet|player|pick|win|odds|choice|go|choose|on|money)\b/.test(t);
         if ((isBestQuery || hasBetContext) && window.Sports.flowState === "idle") {
           window.Sports.handleBestPlayerIntent();
@@ -564,8 +650,7 @@
         }
       }
 
-      // ── Navigate to sports (from any screen) ─────────────────────────────────
-      const hasBetWord = /\b(bet|betting|wager|sports bet|make a bet|place a bet|tennis|wimbledon|sports)\b/.test(t);
+      const hasBetWord  = /\b(bet|betting|wager|sports bet|make a bet|place a bet|tennis|wimbledon|sports)\b/.test(t);
       const hasNegation = /\b(no|don't|not|cancel|stop)\b/.test(t);
       if (hasBetWord && !hasNegation && window.Sports && !onSports) {
         window.Sports.handleBetIntent();
@@ -573,40 +658,33 @@
     });
 
     bus.on("voice:mic:denied", ({ code }) => {
-      micEnabled = false;
-      setEmotion(E.WORRIED);
+      micEnabled = false; setEmotion(E.WORRIED);
       if (code === "denied") {
-        toast("Mic blocked — allow in browser site settings (Arc: lock icon → Microphone)", "info", 6000);
+        toast("Mic blocked — allow in browser site settings", "info", 6000);
       } else if (code === "insecure") {
         toast("Mic needs HTTPS or localhost", "info", 4000);
       } else {
         toast("Mic unavailable — check browser permissions", "info", 4500);
       }
     });
-
-    bus.on("voice:mic:granted", () => {
-      micEnabled = true;
-    });
-
+    bus.on("voice:mic:granted", () => { micEnabled = true; });
     bus.on("voice:mic:streaming", () => {
-      micEnabled = true;
-      connecting = false;
+      micEnabled = connecting = false;
       if (!isHidden && !inGameReaction()) setEmotion(E.LISTENING);
     });
   }
 
+  // ── Companion idle ────────────────────────────────────────────────────────────
   function startCompanionIdle() {
     const ms = (cfg.EVENT_SYSTEM && cfg.EVENT_SYSTEM.idleTimeoutMs) || 22000;
     const tick = () => {
-      if (!voiceActive) {
-        nudge();
-        showReaction(window.Character.reactToOutcome("IDLE"), "IDLE");
-      }
+      if (!voiceActive) { nudge(); showReaction(window.Character.reactToOutcome("IDLE"), "IDLE"); }
       idleTimer = setTimeout(tick, ms);
     };
     idleTimer = setTimeout(tick, ms);
   }
 
+  // ── Emotion / toast / effects ─────────────────────────────────────────────────
   function setEmotion(emotion) {
     if (!sprites[emotion]) emotion = E.IDLE;
     if (ui.char) ui.char.src = sprites[emotion];
@@ -619,7 +697,7 @@
     clearTimeout(bubbleTimer);
     const short = text.length > 48 ? text.slice(0, 46).trim() + "…" : text;
     ui.toast.textContent = short;
-    ui.toast.className = "yuki-toast show event-" + kind;
+    ui.toast.className   = "yuki-toast show event-" + kind;
     bubbleTimer = setTimeout(clearToast, ms);
   }
 
@@ -637,9 +715,9 @@
 
   function burstConfetti() {
     if (!ui.charWrap) return;
-    const layer = document.createElement("div");
+    const layer  = document.createElement("div");
     layer.className = "confetti-layer";
-    const colors = ["#7ad7ff", "#ffd166", "#ff7ab6", "#9b8cff", "#7CFFB2"];
+    const colors = ["#7ad7ff","#ffd166","#ff7ab6","#9b8cff","#7CFFB2"];
     for (let i = 0; i < 24; i++) {
       const c = document.createElement("i");
       c.style.left = Math.random() * 100 + "%";

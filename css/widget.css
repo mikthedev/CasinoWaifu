@@ -1,8 +1,10 @@
 /* ============================================================================
-   widget.css — Yuki bar above casino controls
-   Layout: [ Mute ]  Yuki  [ Hide ]
+   widget.css — Yuki companion widget
+   Desktop/slot: popup buttons overlaid as small circles at the base of Yuki.
+   Mobile (≤480px): draggable fixed bubble; popup panel revealed on tap.
    ========================================================================== */
 
+/* ── Slot wrapper (in-flow, desktop) ─────────────────────────────────────── */
 .yuki-bar {
   --yuki-h: clamp(72px, 11vh, 96px);
   --slide-depth: 120px;
@@ -17,16 +19,9 @@
   min-height: calc(var(--yuki-h) + 36px);
   transition: min-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
+.yuki-bar.is-collapsed { min-height: 48px; margin-bottom: -4px; }
 
-.yuki-bar.is-collapsed {
-  min-height: 48px;
-  margin-bottom: -4px;
-}
-
-#yuki-widget {
-  pointer-events: none;
-  width: 100%;
-}
+#yuki-widget { pointer-events: none; width: 100%; }
 
 .yuki-root.casino-widget {
   width: 100%;
@@ -35,12 +30,71 @@
   pointer-events: none;
 }
 
+/* Stage is always a relative container for popup/toast absolute children */
 .yuki-stage {
   position: relative;
   width: 100%;
 }
 
-/* ---- horizontal row: mute | yuki | hide -------------------------------- */
+/* ── Popup ─────────────────────────────────────────────────────────────────── */
+
+/*
+ * Default (desktop slot context):
+ *   Small circular icon buttons overlaid at the base of the character.
+ *   Uses absolute positioning so they don't add to flow height.
+ */
+.yuki-popup {
+  position: absolute;
+  bottom: 6px;
+  right: 50%;
+  transform: translateX(44px);  /* nudge right of centre so they don't cover face */
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.yuki-pop-btn {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(16, 24, 36, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s, background 0.18s, color 0.18s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* Desktop: icon-only circles — hide the text label */
+.yuki-pop-btn .pop-label { display: none; }
+
+.yuki-pop-btn:active { transform: scale(0.88); }
+.yuki-pop-btn:hover  { background: rgba(37, 54, 73, 0.98); color: #e2e8f0; }
+
+.yuki-pop-btn.is-muted {
+  background: rgba(239, 68, 68, 0.35);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+.yuki-pop-btn.is-hidden-mode {
+  background: rgba(29, 185, 106, 0.18);
+  border-color: rgba(29, 185, 106, 0.45);
+  color: #1db96a;
+}
+
+/* ── Character row ───────────────────────────────────────────────────────── */
 .yuki-row {
   display: flex;
   align-items: flex-end;
@@ -56,64 +110,27 @@
   display: flex;
   justify-content: center;
   min-width: 0;
-  transition:
-    transform 0.48s cubic-bezier(0.45, 0.05, 0.2, 1),
-    opacity 0.32s ease;
+  transition: transform 0.48s cubic-bezier(0.45, 0.05, 0.2, 1), opacity 0.32s ease;
   transform: translateY(0);
   opacity: 1;
 }
 
-/* Slide down under the bet controls */
+/* Slide down when hidden */
 .yuki-root.yuki-hidden .yuki-body {
   transform: translateY(var(--slide-depth));
   opacity: 0;
   pointer-events: none;
 }
-
-/* Pop back up when Show is pressed */
 .yuki-root.yuki-pop .yuki-body {
   animation: yukiPopUp 0.55s cubic-bezier(0.2, 1.35, 0.35, 1) forwards;
 }
-
 @keyframes yukiPopUp {
-  0% {
-    transform: translateY(var(--slide-depth)) scale(0.88);
-    opacity: 0;
-  }
-  55% {
-    transform: translateY(-10px) scale(1.04);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
+  0%   { transform: translateY(var(--slide-depth)) scale(0.88); opacity: 0; }
+  55%  { transform: translateY(-10px) scale(1.04);              opacity: 1; }
+  100% { transform: translateY(0) scale(1);                     opacity: 1; }
 }
 
-.yc-btn.side {
-  flex-shrink: 0;
-  align-self: center;
-  pointer-events: auto;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  font-size: 16px;
-  border-radius: 50%;
-  position: relative;
-  z-index: 3;
-}
-
-.yc-btn.hide.side {
-  font-size: 10px;
-  font-weight: 800;
-  width: auto;
-  min-width: 40px;
-  height: 40px;
-  padding: 0 10px;
-  border-radius: 999px;
-}
-
-/* ---- toast (hidden mode) ----------------------------------------------- */
+/* ── Toast ──────────────────────────────────────────────────────────────── */
 .yuki-toast {
   display: none;
   margin: 0 auto 6px;
@@ -132,12 +149,7 @@
   position: relative;
   z-index: 3;
 }
-
-.yuki-toast.show {
-  display: block;
-  opacity: 1;
-  transform: translateY(0);
-}
+.yuki-toast.show { display: block; opacity: 1; transform: translateY(0); }
 
 .yuki-toast.event-talk {
   background: linear-gradient(135deg, #e0f9ff, #b8f0ff);
@@ -145,12 +157,10 @@
   border: 1px solid rgba(110, 231, 255, 0.55);
   animation: talkPulse 2s ease-in-out infinite;
 }
-
 @keyframes talkPulse {
   0%, 100% { box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3); }
-  50% { box-shadow: 0 8px 32px rgba(110, 231, 255, 0.45); }
+  50%       { box-shadow: 0 8px 32px rgba(110, 231, 255, 0.45); }
 }
-
 .yuki-toast.event-win {
   background: linear-gradient(135deg, #fff9e6, #ffe08a);
   color: #5c4200;
@@ -169,16 +179,15 @@
 .yuki-toast.event-info {
   background: rgba(30, 45, 61, 0.97);
   color: #e2e8f0;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
-
 @keyframes toastPop {
-  0% { transform: scale(0.92); }
-  60% { transform: scale(1.04); }
+  0%   { transform: scale(0.92); }
+  60%  { transform: scale(1.04); }
   100% { transform: scale(1); }
 }
 
-/* ---- character --------------------------------------------------------- */
+/* ── Character ──────────────────────────────────────────────────────────── */
 .yuki-char-wrap,
 .yuki-tap-target {
   position: relative;
@@ -193,10 +202,7 @@
   padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
-
-.yuki-root.yuki-hidden .yuki-char-wrap {
-  animation: none;
-}
+.yuki-root.yuki-hidden .yuki-char-wrap { animation: none; }
 
 .yuki-char {
   height: 100%;
@@ -209,10 +215,8 @@
 
 .yuki-glow {
   position: absolute;
-  left: 50%;
-  bottom: 6%;
-  width: 130%;
-  height: 70%;
+  left: 50%; bottom: 6%;
+  width: 130%; height: 70%;
   transform: translateX(-50%);
   border-radius: 50%;
   filter: blur(20px);
@@ -223,57 +227,36 @@
 
 @keyframes floaty {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
+  50%       { transform: translateY(-5px); }
 }
 
-.yuki-root[data-emotion="happy"] .yuki-glow {
-  background: radial-gradient(circle, #fcd34d 0%, transparent 70%);
-}
-.yuki-root[data-emotion="excited"] .yuki-glow {
-  background: radial-gradient(circle, #ff9ecd 0%, transparent 70%);
-}
-.yuki-root[data-emotion="sad"] .yuki-glow {
-  background: radial-gradient(circle, #8aa0ff 0%, transparent 70%);
-  opacity: 0.35;
-}
-.yuki-root[data-emotion="listening"] .yuki-glow {
-  background: radial-gradient(circle, #6ee7ff 0%, transparent 70%);
-  opacity: 0.7;
-}
-.yuki-root[data-emotion="thinking"] .yuki-glow {
-  background: radial-gradient(circle, #c084fc 0%, transparent 70%);
-}
+.yuki-root[data-emotion="happy"]     .yuki-glow { background: radial-gradient(circle, #fcd34d 0%, transparent 70%); }
+.yuki-root[data-emotion="excited"]   .yuki-glow { background: radial-gradient(circle, #ff9ecd 0%, transparent 70%); }
+.yuki-root[data-emotion="sad"]       .yuki-glow { background: radial-gradient(circle, #8aa0ff 0%, transparent 70%); opacity: 0.35; }
+.yuki-root[data-emotion="listening"] .yuki-glow { background: radial-gradient(circle, #6ee7ff 0%, transparent 70%); opacity: 0.7; }
+.yuki-root[data-emotion="thinking"]  .yuki-glow { background: radial-gradient(circle, #c084fc 0%, transparent 70%); }
 
 .yuki-root[data-emotion="excited"] .yuki-char-wrap {
   animation: bounceExcited 0.6s ease-in-out infinite;
 }
-@keyframes bounceExcited {
-  35% { transform: translateY(-10px); }
-}
+@keyframes bounceExcited { 35% { transform: translateY(-10px); } }
 
-.yuki-root.speaking .yuki-char {
-  animation: talkBob 0.28s ease-in-out infinite;
-}
-@keyframes talkBob {
-  50% { transform: translateY(-2px); }
-}
+.yuki-root.speaking .yuki-char { animation: talkBob 0.28s ease-in-out infinite; }
+@keyframes talkBob { 50% { transform: translateY(-2px); } }
 
 .listen-ring {
   --lvl: 0;
   position: absolute;
-  left: 50%;
-  bottom: 8%;
-  width: 86%;
-  aspect-ratio: 1;
+  left: 50%; bottom: 8%;
+  width: 86%; aspect-ratio: 1;
   transform: translateX(-50%) scale(calc(0.7 + var(--lvl) * 0.9));
   border-radius: 50%;
   border: 2px solid rgba(110, 231, 255, 0.5);
-  opacity: 0;
-  pointer-events: none;
-  z-index: -1;
+  opacity: 0; pointer-events: none; z-index: -1;
 }
 .yuki-root.listening .listen-ring { opacity: 1; }
 
+/* ── Legacy yc-btn (companion mode talk/mute) ────────────────────────────── */
 .yc-btn {
   display: flex;
   align-items: center;
@@ -290,89 +273,11 @@
 }
 .yc-btn:active { transform: scale(0.93); }
 .yc-btn:hover  { background: rgba(37, 54, 73, 0.98); }
-
 .yc-btn.mute.is-muted {
   background: rgba(239, 68, 68, 0.35);
   border-color: rgba(239, 68, 68, 0.5);
 }
 
-.yc-btn.hide.is-hidden-mode {
-  background: rgba(29, 185, 106, 0.18);
-  border-color: rgba(29, 185, 106, 0.45);
-  color: #1db96a;
-}
-
-.yuki-root.yuki-hidden .yuki-row {
-  align-items: center;
-}
-
-.confetti-layer {
-  position: absolute;
-  inset: -20% -40% 40% -40%;
-  pointer-events: none;
-  z-index: 5;
-}
-.confetti-layer i {
-  position: absolute;
-  top: 0;
-  width: 8px;
-  height: 12px;
-  border-radius: 2px;
-  opacity: 0;
-  animation: confettiFall 1.8s ease-in forwards;
-}
-@keyframes confettiFall {
-  10% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(140px) rotate(540deg); }
-}
-
-.yuki-char-wrap.nudge {
-  animation: nudgeHop 0.7s ease;
-}
-@keyframes nudgeHop {
-  25% { transform: translateY(-12px); }
-}
-
-@media (max-width: 480px) {
-  .yuki-bar {
-    --yuki-h: clamp(76px, 11vh, 100px);
-    --slide-depth: 120px;
-    padding: 0 8px 0;
-  }
-
-  .yuki-row { gap: 6px; }
-
-  .yc-btn.side {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
-  }
-
-  .yc-btn.hide.side {
-    min-width: 36px;
-    height: 36px;
-    font-size: 9px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .yuki-body,
-  .yuki-bar {
-    transition: none !important;
-  }
-  .yuki-root.yuki-pop .yuki-body {
-    animation: none !important;
-  }
-  .yuki-char-wrap,
-  .yuki-root[data-emotion] .yuki-char-wrap,
-  .yuki-root.speaking .yuki-char {
-    animation: none !important;
-  }
-}
-
-/* ============================================================================
-   Controls base — talk / mute buttons outside companion-mode
-   ========================================================================== */
 .yuki-controls {
   display: flex;
   flex-direction: row;
@@ -381,29 +286,47 @@
   margin-top: 4px;
   pointer-events: none;
 }
-
-/* Buttons must always receive taps regardless of parent pointer-events */
 .yc-btn.talk,
-.yc-btn.mute {
-  pointer-events: auto;
-}
+.yc-btn.mute { pointer-events: auto; }
 
-/* ============================================================================
-   Floating overlay host — position: fixed so Yuki stays above fullscreen
-   iframes and game screens. Applied on mobile only; desktop keeps the
-   in-flow slot placement managed by casino.js.
-   ========================================================================== */
+/* ── Confetti / nudge ────────────────────────────────────────────────────── */
+.confetti-layer {
+  position: absolute;
+  inset: -20% -40% 40% -40%;
+  pointer-events: none;
+  z-index: 5;
+}
+.confetti-layer i {
+  position: absolute;
+  top: 0; width: 8px; height: 12px;
+  border-radius: 2px; opacity: 0;
+  animation: confettiFall 1.8s ease-in forwards;
+}
+@keyframes confettiFall {
+  10%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(140px) rotate(540deg); }
+}
+.yuki-char-wrap.nudge { animation: nudgeHop 0.7s ease; }
+@keyframes nudgeHop { 25% { transform: translateY(-12px); } }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE OVERLAY  (≤480px)
+   Yuki is a draggable fixed bubble, bottom-right of screen.
+   Buttons hidden inside a popup that opens on tap.
+   ══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
+
+  /* ── Fixed draggable host ────────────────────────────────────────────── */
   .yuki-widget-host {
     position: fixed;
     z-index: 9999;
     pointer-events: none;
-    bottom: 68px; /* above the 58px game-nav + 10px gap */
+    bottom: 72px;
     right: 10px;
-    width: 120px;
+    width: 84px;
+    /* touch-action managed per-element in JS to avoid scroll interference */
   }
 
-  /* Let glow / confetti overflow the bar bounds */
   .yuki-widget-host #yuki-widget {
     overflow: visible;
     min-height: auto !important;
@@ -411,18 +334,122 @@
     width: 100%;
   }
 
-  /* Tighten slot-sized buttons for overlay context */
-  .yuki-widget-host .yc-btn.talk,
-  .yuki-widget-host .yc-btn.mute {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    font-size: 16px;
+  /* ── Compact character ───────────────────────────────────────────────── */
+  .yuki-widget-host .yuki-bar {
+    --yuki-h: 82px;
+    --slide-depth: 100px;
     padding: 0;
+    min-height: auto;
+    overflow: visible;
   }
 
-  /* Hide the now-empty in-flow slot so it leaves no dead space */
+  .yuki-widget-host .yuki-stage {
+    height: calc(var(--yuki-h) + 4px);
+    overflow: visible;
+  }
+
+  .yuki-widget-host .yuki-row {
+    gap: 0;
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    justify-content: flex-end;
+  }
+
+  .yuki-widget-host .yuki-char-wrap {
+    pointer-events: auto;
+  }
+
+  /* ── Popup: HIDDEN until tapped ──────────────────────────────────────── */
+  .yuki-widget-host .yuki-popup {
+    position: absolute;
+    bottom: calc(var(--yuki-h) + 6px);  /* float just above character */
+    right: 0;
+    transform-origin: bottom right;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+    margin: 0;
+    /* Override desktop circle styles */
+    width: auto;
+    /* Hidden */
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.85) translateY(8px);
+    transition: opacity 0.17s ease, transform 0.17s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+
+  .yuki-widget-host .yuki-popup.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1) translateY(0);
+  }
+
+  /* Override circular button → pill button, show label text */
+  .yuki-widget-host .yuki-pop-btn {
+    width: auto;
+    height: auto;
+    border-radius: 22px;
+    font-size: 12px;
+    padding: 7px 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    color: #e2e8f0;
+    background: rgba(16, 24, 36, 0.95);
+    touch-action: manipulation;
+  }
+  .yuki-widget-host .yuki-pop-btn .pop-label {
+    display: inline;  /* show text on mobile pills */
+  }
+
+  /* ── Toast: floats above the popup column ────────────────────────────── */
+  .yuki-widget-host .yuki-toast {
+    position: absolute;
+    bottom: calc(var(--yuki-h) + 92px);  /* above 2 popup buttons */
+    right: 0;
+    left: auto;
+    margin: 0;
+    font-size: 11px;
+    padding: 6px 10px;
+    max-width: 190px;
+    width: max-content;
+    white-space: normal;
+  }
+
+  /* ── Mini badge when Yuki is hidden ─────────────────────────────────── */
+  .yuki-widget-host.yuki-mini {
+    width: 44px !important;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: rgba(16, 24, 36, 0.92);
+    border: 1.5px solid rgba(29, 185, 106, 0.6);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .yuki-widget-host.yuki-mini #yuki-widget { display: none; }
+  .yuki-widget-host.yuki-mini::after {
+    content: "✦";
+    color: #1db96a;
+    font-size: 17px;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  /* Hide the empty in-flow slot */
   .yuki-overlay-mode .yuki-slot--bar {
     display: none !important;
   }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .yuki-body, .yuki-bar { transition: none !important; }
+  .yuki-root.yuki-pop .yuki-body { animation: none !important; }
+  .yuki-char-wrap,
+  .yuki-root[data-emotion] .yuki-char-wrap,
+  .yuki-root.speaking .yuki-char { animation: none !important; }
 }

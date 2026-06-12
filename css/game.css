@@ -389,8 +389,8 @@ body.casino-mode {
   align-items: flex-end;
 }
 
-.yuki-slot--bar .yc-btn.side      { width: 32px; height: 32px; font-size: 12px; }
-.yuki-slot--bar .yc-btn.hide.side { min-width: 32px; height: 32px; font-size: 8px; }
+/* Popup circle buttons in desktop slot — slightly smaller to fit slot height */
+.yuki-slot--bar .yuki-pop-btn { width: 22px; height: 22px; font-size: 10px; }
 
 /* ── Bottom nav ─────────────────────────────────────────────────────────────── */
 .game-nav {
@@ -1056,9 +1056,8 @@ body.casino-mode {
   .roulette-screen .action-btn    { padding: 11px; font-size: 13px; }
   .roulette-screen .number-wrap input { padding: 8px 10px; font-size: 14px; }
 
-  /* Yuki slot buttons */
-  .yuki-slot--bar .yc-btn.side      { width: 28px; height: 28px; font-size: 11px; }
-  .yuki-slot--bar .yc-btn.hide.side { min-width: 28px; height: 28px; font-size: 7px; }
+  /* Yuki popup circle buttons in slot */
+  .yuki-slot--bar .yuki-pop-btn { width: 20px; height: 20px; font-size: 9px; }
 
   /* Shared control sizes */
   .controls-sheet { padding: 8px 10px; gap: 5px; }

@@ -1,7 +1,5 @@
 /**
- * roulette.js — European single-zero roulette
- * Uses Casino.getBalance() / Casino.adjustBalance() for shared credits.
- * Emits: EventBus.emitRoulette("WIN"|"LOSE"|"BIG_WIN"|"IDLE", payload)
+ * roulette.js — European roulette with hot/cold numbers + expanded bet types
  */
 (function () {
   const bus  = window.EventBus;
@@ -12,7 +10,6 @@
                  23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
   const REDS  = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
   const SEG   = 360 / WHEEL.length;
-
   const colorOf = n => (n === 0 ? "green" : REDS.has(n) ? "red" : "black");
 
   let chip = 25;
@@ -21,10 +18,12 @@
   let spinning = false;
   let wheelRotation = 0;
   let idleTimer = null;
-  let history = [];
+  let history = [];      // recent results (max 20)
+  let spinLog = [];      // for hot/cold (max 50)
 
   const el = {};
 
+  // ── Init ────────────────────────────────────────────────────────────────────
   function init() {
     el.wheel       = document.getElementById("wheel");
     el.result      = document.getElementById("result");
@@ -33,23 +32,24 @@
     el.numberWrap  = document.getElementById("number-wrap");
     el.numberInput = document.getElementById("bet-number");
     el.history     = document.getElementById("history");
+    el.hotColdEl   = document.getElementById("roulette-hot-cold");
 
-    // Only select chips/bets inside roulette screen
-    const screen   = document.querySelector('[data-screen="roulette"]');
-    el.chips       = [...screen.querySelectorAll("[data-chip]")];
-    el.betBtns     = [...screen.querySelectorAll("[data-bet]")];
+    const screen = document.querySelector('[data-screen="roulette"]');
+    el.chips     = [...screen.querySelectorAll("[data-chip]")];
+    el.betBtns   = [...screen.querySelectorAll("[data-bet]")];
 
     buildWheel();
     bindControls();
     syncBetUI();
     resetIdleTimer();
+    renderHotCold();
   }
 
   function buildWheel() {
     const stops = WHEEL.map((n, i) => {
       const start = (i * SEG).toFixed(3);
       const end   = ((i + 1) * SEG).toFixed(3);
-      const c = colorOf(n) === "red" ? "#d23b4e" : colorOf(n) === "black" ? "#1f2430" : "#22a06b";
+      const c = colorOf(n) === "red" ? "#c0263a" : colorOf(n) === "black" ? "#1a2534" : "#1db96a";
       return `${c} ${start}deg ${end}deg`;
     });
     el.wheel.style.background = `conic-gradient(${stops.join(",")})`;
@@ -61,9 +61,9 @@
       label.className = "wheel-num";
       label.textContent = n;
       const rad = (angle - 90) * (Math.PI / 180);
-      label.style.left = `${50 + radius * Math.cos(rad)}%`;
-      label.style.top  = `${50 + radius * Math.sin(rad)}%`;
-      label.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+      label.style.left      = `${50 + radius * Math.cos(rad)}%`;
+      label.style.top       = `${50 + radius * Math.sin(rad)}%`;
+      label.style.transform = `translate(-50%,-50%) rotate(${angle}deg)`;
       el.wheel.appendChild(label);
     });
   }
@@ -99,6 +99,7 @@
     el.numberInput.value = betNumber;
   }
 
+  // ── Spin ─────────────────────────────────────────────────────────────────────
   function spin() {
     if (spinning) return;
     const balance = window.Casino.getBalance();
@@ -127,25 +128,42 @@
     const color = colorOf(n);
     let payout = 0, big = false;
 
-    if (betType === "number") {
+    if      (betType === "number") {
       if (n === betNumber) { payout = chip * 36; big = true; }
     } else if (betType === "red" || betType === "black") {
       if (color === betType) payout = chip * 2;
+    } else if (betType === "even") {
+      if (n !== 0 && n % 2 === 0) payout = chip * 2;
+    } else if (betType === "odd") {
+      if (n !== 0 && n % 2 !== 0) payout = chip * 2;
+    } else if (betType === "low") {
+      if (n >= 1 && n <= 18) payout = chip * 2;
+    } else if (betType === "high") {
+      if (n >= 19 && n <= 36) payout = chip * 2;
+    } else if (betType === "dozen1") {
+      if (n >= 1 && n <= 12) payout = chip * 3;
+    } else if (betType === "dozen2") {
+      if (n >= 13 && n <= 24) payout = chip * 3;
+    } else if (betType === "dozen3") {
+      if (n >= 25 && n <= 36) payout = chip * 3;
     }
 
     const newBal = window.Casino.adjustBalance(payout);
-
     el.result.className = `result ${color}`;
     el.result.textContent = n;
-    el.resultLabel.textContent = `${n} ${color.toUpperCase()}`;
+    el.resultLabel.textContent = `${n} — ${color.toUpperCase()}`;
+
     pushHistory(n, color);
+    spinLog.push(n);
+    if (spinLog.length > 50) spinLog.shift();
+    renderHotCold();
 
     if (payout > 0) {
       const net = payout - chip;
       flashResult(`+${net.toLocaleString()}`, "win");
       bus.emitRoulette(big ? "BIG_WIN" : "WIN", { number: n, color, amount: net, balance: newBal, betType });
     } else {
-      flashResult(`-${chip.toLocaleString()}`, "lose");
+      flashResult(`−${chip.toLocaleString()}`, "lose");
       bus.emitRoulette("LOSE", { number: n, color, amount: chip, balance: newBal, betType });
     }
 
@@ -164,8 +182,39 @@
 
   function pushHistory(n, color) {
     history.unshift({ n, color });
-    history = history.slice(0, 8);
+    history = history.slice(0, 20);
     el.history.innerHTML = history.map(h => `<span class="chip-dot ${h.color}">${h.n}</span>`).join("");
+  }
+
+  // ── Hot / cold numbers ───────────────────────────────────────────────────────
+  function renderHotCold() {
+    if (!el.hotColdEl) return;
+    if (spinLog.length < 5) {
+      el.hotColdEl.innerHTML = '<span class="hc-hint">Spin to build statistics…</span>';
+      return;
+    }
+
+    const freq = {};
+    spinLog.forEach(n => { freq[n] = (freq[n] || 0) + 1; });
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    const hot  = sorted.slice(0, 5);
+    const cold = sorted.slice(-5).reverse();
+
+    const pill = ([n, cnt]) => {
+      const c = colorOf(Number(n));
+      return `<span class="hc-pill hc-${c}" title="${cnt} hits">${n}</span>`;
+    };
+
+    el.hotColdEl.innerHTML = `
+      <div class="hc-group">
+        <span class="hc-label">🔥 Hot</span>
+        ${hot.map(pill).join("")}
+      </div>
+      <div class="hc-group">
+        <span class="hc-label">❄ Cold</span>
+        ${cold.map(pill).join("")}
+      </div>
+    `;
   }
 
   function resetIdleTimer() {

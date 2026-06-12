@@ -56,6 +56,9 @@
                 </div>
               </div>
 
+              <!-- Hot / Cold numbers panel -->
+              <div class="roulette-hot-cold" id="roulette-hot-cold"></div>
+
               <!-- Yuki sits between wheel and controls -->
               <div class="yuki-slot yuki-slot--bar" data-game="roulette"></div>
 
@@ -63,7 +66,16 @@
                 <div class="seg-control bet-types">
                   <button class="seg-btn red active" data-bet="red">Red</button>
                   <button class="seg-btn black" data-bet="black">Black</button>
+                  <button class="seg-btn" data-bet="even">Even</button>
+                  <button class="seg-btn" data-bet="odd">Odd</button>
                   <button class="seg-btn number" data-bet="number">#</button>
+                </div>
+                <div class="seg-control bet-types roulette-bets-row2">
+                  <button class="seg-btn" data-bet="low">1–18</button>
+                  <button class="seg-btn" data-bet="high">19–36</button>
+                  <button class="seg-btn" data-bet="dozen1">1st 12</button>
+                  <button class="seg-btn" data-bet="dozen2">2nd 12</button>
+                  <button class="seg-btn" data-bet="dozen3">3rd 12</button>
                 </div>
                 <div class="number-wrap" id="number-wrap">
                   <input id="bet-number" type="number" min="0" max="36" value="7" inputmode="numeric" aria-label="Bet number" />
@@ -87,6 +99,18 @@
           <!-- ── BLACKJACK ─────────────────────────────────────────── -->
           <section class="game-screen" data-screen="blackjack" aria-label="Blackjack">
             <div class="screen-inner bj-screen">
+
+              <!-- Session stats bar -->
+              <div class="bj-stats-bar">
+                <div class="bj-stats-left">
+                  <span class="bj-stat-badge" id="bj-streak">—</span>
+                  <div class="bj-hand-history" id="bj-hand-history"></div>
+                </div>
+                <div class="bj-stats-right">
+                  <div class="bj-session-stats" id="bj-session-stats"></div>
+                  <div class="bj-shoe-wrap" id="bj-shoe"></div>
+                </div>
+              </div>
 
               <div class="bj-table">
                 <div class="bj-hand bj-hand-dealer">
@@ -129,10 +153,21 @@
           <section class="game-screen" data-screen="crash" aria-label="Crash">
             <div class="screen-inner crash-screen">
 
-              <div class="crash-graph-wrap">
-                <canvas id="crash-canvas" class="crash-canvas"></canvas>
-                <div class="crash-multiplier" id="crash-multiplier">1.00×</div>
-                <div class="crash-status" id="crash-status">Place your bet</div>
+              <!-- History strip -->
+              <div class="crash-history-row">
+                <div class="crash-history-strip" id="crash-history"></div>
+                <div class="crash-session-stats" id="crash-session-stats"></div>
+              </div>
+
+              <div class="crash-main-area">
+                <div class="crash-graph-wrap">
+                  <canvas id="crash-canvas" class="crash-canvas"></canvas>
+                  <div class="crash-multiplier" id="crash-multiplier">1.00×</div>
+                  <div class="crash-status" id="crash-status">Place your bet</div>
+                </div>
+
+                <!-- Live players sidebar -->
+                <div class="crash-live-players" id="crash-live-players"></div>
               </div>
 
               <!-- Yuki at bottom of graph area -->
@@ -167,8 +202,30 @@
           <section class="game-screen" data-screen="slots" aria-label="Slots">
             <div class="screen-inner slots-screen">
 
+              <!-- Jackpot meter -->
+              <div class="slots-jackpot-meter">
+                <div class="slots-jackpot-label">
+                  <span class="slots-jp-icon">🏆</span>
+                  <span>JACKPOT</span>
+                </div>
+                <div class="slots-jackpot-amount">
+                  <span class="slots-jp-val" id="slots-jackpot-val">850</span>
+                </div>
+                <div class="slots-jackpot-track">
+                  <div class="slots-jackpot-bar" id="slots-jackpot-bar"></div>
+                </div>
+              </div>
+
+              <!-- Recent wins ticker -->
+              <div class="slots-win-ticker" id="slots-win-ticker">
+                <span class="ticker-empty">No wins yet — spin to start!</span>
+              </div>
+
               <div class="slots-machine">
-                <div class="slots-title">Lucky Reels</div>
+                <div class="slots-machine-header">
+                  <span class="slots-title">Lucky Reels</span>
+                  <button class="slots-paytable-btn" id="slots-paytable-btn">PAYTABLE</button>
+                </div>
                 <div class="slots-reels-wrap">
                   <div class="slots-payline-marker"></div>
                   <div class="slots-reels" id="slots-reels">
@@ -185,6 +242,9 @@
                 </div>
                 <div class="slots-result" id="slots-result"></div>
               </div>
+
+              <!-- Paytable overlay -->
+              <div class="paytable-overlay" id="slots-paytable-overlay"></div>
 
               <!-- Yuki above the spin button -->
               <div class="yuki-slot yuki-slot--bar" data-game="slots"></div>
@@ -208,9 +268,21 @@
           <section class="game-screen" data-screen="sports" aria-label="Sports Betting">
             <div class="screen-inner sports-screen">
 
-              <!-- Sport filter tabs -->
+              <!-- Sport type tabs -->
               <div class="sports-tabs">
                 <button class="sport-tab active" data-sport="tennis">🎾 Tennis</button>
+                <button class="sport-tab locked" data-sport="football" disabled>⚽ Football</button>
+                <button class="sport-tab locked" data-sport="basketball" disabled>🏀 Basketball</button>
+              </div>
+
+              <!-- Tournament filter tabs (populated by sports.js) -->
+              <div class="sports-tournament-tabs" id="sports-tournament-tabs"></div>
+
+              <!-- Bet type tabs -->
+              <div class="sports-bet-type-tabs" id="sports-bet-type-tabs">
+                <button class="bet-type-tab active" data-bet-type="winner">Match Winner</button>
+                <button class="bet-type-tab" data-bet-type="handicap">+1.5 Sets</button>
+                <button class="bet-type-tab" data-bet-type="ou">Over/Under</button>
               </div>
 
               <!-- Match cards list — populated by sports.js -->

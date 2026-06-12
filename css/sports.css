@@ -9,23 +9,25 @@
   min-height: 0;
   height: 100%;
   gap: 0;
+  padding: 0;
   overflow: hidden;
 }
 
-/* ── sport tabs ─────────────────────────────────────────────────────────────── */
+/* ── sport type tabs ─────────────────────────────────────────────────────────── */
 .sports-tabs {
   flex-shrink: 0;
   display: flex;
-  gap: 7px;
+  gap: 6px;
   padding: 8px 12px 6px;
   overflow-x: auto;
   scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
 }
 .sports-tabs::-webkit-scrollbar { display: none; }
 
 .sport-tab {
   flex-shrink: 0;
-  padding: 5px 14px;
+  padding: 5px 13px;
   border-radius: 20px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
@@ -40,6 +42,74 @@
   background: rgba(52,211,153,0.13);
   border-color: rgba(52,211,153,0.38);
   color: var(--green);
+}
+.sport-tab.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  position: relative;
+}
+.sport-tab.locked::after {
+  content: "🔒";
+  font-size: 7px;
+  margin-left: 3px;
+  vertical-align: super;
+}
+
+/* ── tournament filter tabs ──────────────────────────────────────────────────── */
+.sports-tournament-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 5px;
+  padding: 5px 12px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+.sports-tournament-tabs::-webkit-scrollbar { display: none; }
+.tour-tab {
+  flex-shrink: 0;
+  padding: 3px 11px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tour-tab.active {
+  background: var(--bg-2);
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
+
+/* ── bet type tabs ───────────────────────────────────────────────────────────── */
+.sports-bet-type-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+.bet-type-tab {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-transform: uppercase;
+}
+.bet-type-tab.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
 }
 
 /* ── match list (scrollable middle section) ─────────────────────────────────── */
@@ -139,18 +209,42 @@
   letter-spacing: 0.06em;
 }
 
-/* match body */
-.match-body {
-  padding: 8px 11px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+/* ── surface badge ──────────────────────────────────────────────────────────── */
+.match-surface {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 5px;
 }
+.match-surface.grass { background: rgba(29,185,106,0.15); color: var(--green); }
+.match-surface.hard  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.match-surface.clay  { background: rgba(249,115,22,0.15); color: #fb923c; }
 
+/* match body */
 .match-players {
   display: flex;
   align-items: stretch;
-  gap: 7px;
+  gap: 6px;
+  padding: 8px 10px 6px;
+}
+
+/* VS column (center between players) */
+.match-vs-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+.match-vs-col .match-score,
+.match-vs-col .match-time {
+  font-size: 9px;
+  text-align: center;
+  max-width: 44px;
 }
 
 .player-odds-btn {
@@ -223,6 +317,61 @@
 }
 .form-dot.w { background: var(--green); }
 .form-dot.l { background: rgba(255,255,255,0.2); }
+
+/* Performance bar */
+.perf-bar {
+  display: block;
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1px;
+}
+.perf-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), #22d47b);
+  border-radius: 2px;
+  transition: width 0.8s ease;
+}
+
+/* Live match stats row */
+.match-live-stats {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 5px 10px 7px;
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.015);
+}
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+}
+.stat-key {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stat-val {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ink);
+  min-width: 22px;
+  text-align: center;
+}
+.stat-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
 
 /* "Best pick" badge on favored player */
 .best-pick-badge {
@@ -337,6 +486,11 @@
 
 .bet-slip-match {
   font-size: 10px;
+  color: var(--muted);
+}
+
+.bet-slip-vs {
+  font-size: 9px;
   color: var(--muted);
 }
 

@@ -538,32 +538,37 @@
     bus.on("voice:transcript", ({ text, role } = {}) => {
       if (role !== "user" || !text || isCompanion) return;
       const t = text.toLowerCase();
+      const onSports = window.Casino?.activeGame === "sports";
 
-      // Bet intent — anywhere in the app
-      const hasBetWord = /\b(bet|betting|wager|place a bet|sports bet|make a bet)\b/.test(t);
-      const hasNegation = /\b(no|don't|not|cancel|stop)\b/.test(t);
-      if (hasBetWord && !hasNegation && window.Sports) {
-        if (window.Casino?.activeGame !== "sports") {
-          window.Sports.handleBetIntent();
+      // ── Sports page intents (checked first to avoid early-return issue) ──────
+      if (onSports && window.Sports) {
+        // Confirm a pending Yuki suggestion
+        if (window.Sports.flowState === "awaiting_pick_confirm") {
+          const isConfirm = /\b(yes|sure|ok|okay|go ahead|do it|confirm|fill|yep|yeah|sounds good|let('s| us)|perfect|great)\b/.test(t);
+          if (isConfirm) { window.Sports.handleConfirmIntent(); return; }
         }
-        return;
-      }
 
-      // Best-player intent — only on sports page
-      if (window.Casino?.activeGame === "sports" && window.Sports) {
-        const isBestQuery = /\b(best|recommend|top|who|suggest|favorite|favourite|pick|choice)\b/.test(t);
-        const isBetContext = /\b(bet|player|win|pick|odds|choice)\b/.test(t);
-        if (isBestQuery && isBetContext && window.Sports.flowState === "idle") {
+        // Specific player name mentioned — find and bet on them
+        const namedPlayer = window.Sports.findPlayerByName?.(t);
+        if (namedPlayer && /\b(bet|pick|choose|want|go with|on|back)\b/.test(t)) {
+          window.Sports.handleNamedPlayerIntent(namedPlayer.matchId, namedPlayer.playerId);
+          return;
+        }
+
+        // Best / recommended player query
+        const isBestQuery = /\b(best|recommend|top|who|suggest|favor|favourite|favorite|advise|should|performing|winning|good|strong)\b/.test(t);
+        const hasBetContext = /\b(bet|player|pick|win|odds|choice|go|choose|on|money)\b/.test(t);
+        if ((isBestQuery || hasBetContext) && window.Sports.flowState === "idle") {
           window.Sports.handleBestPlayerIntent();
           return;
         }
+      }
 
-        // Confirm intent — after Yuki has suggested a player
-        const isConfirm = /\b(yes|sure|ok|okay|go ahead|do it|confirm|fill|yep|yeah)\b/.test(t);
-        if (isConfirm && window.Sports.flowState === "awaiting_pick_confirm") {
-          window.Sports.handleConfirmIntent();
-          return;
-        }
+      // ── Navigate to sports (from any screen) ─────────────────────────────────
+      const hasBetWord = /\b(bet|betting|wager|sports bet|make a bet|place a bet|tennis|wimbledon|sports)\b/.test(t);
+      const hasNegation = /\b(no|don't|not|cancel|stop)\b/.test(t);
+      if (hasBetWord && !hasNegation && window.Sports && !onSports) {
+        window.Sports.handleBetIntent();
       }
     });
 

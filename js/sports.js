@@ -416,6 +416,33 @@
     return best;
   }
 
+  // ── Player name lookup (for voice "bet on Alcaraz" type commands) ──────────
+  // Maps name fragments → { matchId, playerId }
+  const NAME_MAP = (() => {
+    const map = {};
+    MATCHES.forEach((m) => {
+      m.players.forEach((p) => {
+        // Full name, last name, common variations
+        const tokens = [
+          p.id,
+          p.fullName.toLowerCase(),
+          p.name.toLowerCase(),
+          p.fullName.split(" ").pop().toLowerCase(), // last name only
+        ];
+        tokens.forEach((tok) => { map[tok] = { matchId: m.id, playerId: p.id }; });
+      });
+    });
+    return map;
+  })();
+
+  function findPlayerByName(text) {
+    // Try exact key matches first
+    for (const [key, val] of Object.entries(NAME_MAP)) {
+      if (text.includes(key)) return val;
+    }
+    return null;
+  }
+
   // ── Yuki voice flow ────────────────────────────────────────────────────────
 
   /** User said something with "bet" intent while not on sports page */
@@ -450,6 +477,24 @@
     // Yuki speaks the recommendation
     window.Voice?.sendContext?.(
       `System: The player asked for the best tennis pick. Based on current performance and odds, the best bet right now is ${player.fullName} (${player.flag} Rank #${player.rank}, perf score ${Math.round(player.perf)}%) to beat ${opponent?.fullName || "their opponent"} in the ${match.tournament} ${match.round}. Odds: ${player.odds.toFixed(2)}. Recommend this to the player and ask if they'd like you to fill in the bet slip for them.`
+    );
+  }
+
+  /** User said a specific player name — suggest that player directly */
+  function handleNamedPlayerIntent(matchId, playerId) {
+    const match = MATCHES.find((m) => m.id === matchId);
+    const player = match?.players.find((p) => p.id === playerId);
+    if (!match || !player) return;
+
+    const opponent = match.players.find((p) => p.id !== playerId);
+    yukiPendingMatch = match;
+    yukiPendingPlayer = player;
+    yukiFlowState = "awaiting_pick_confirm";
+
+    showSuggestionBanner(match, player, opponent);
+
+    window.Voice?.sendContext?.(
+      `System: The player said they want to bet on ${player.fullName} in the ${match.tournament} ${match.round} vs ${opponent?.fullName || "their opponent"}. Odds: ${player.odds.toFixed(2)}. Confirm the pick with enthusiasm and ask if they'd like you to fill in the bet slip.`
     );
   }
 
@@ -592,10 +637,12 @@
   window.Sports = {
     handleBetIntent,
     handleBestPlayerIntent,
+    handleNamedPlayerIntent,
     handleConfirmIntent,
     autofillBet,
     navigateToSports,
     getBestPlayer,
+    findPlayerByName,
     get flowState() { return yukiFlowState; },
   };
 })();

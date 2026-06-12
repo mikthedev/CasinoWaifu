@@ -371,8 +371,8 @@ body.casino-mode {
 }
 .nav-btn:active { transform: scale(0.9); }
 
-.nav-icon { font-size: 20px; line-height: 1; }
-.nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+.nav-icon { font-size: 18px; line-height: 1; }
+.nav-label { font-size: 9px; font-weight: 700; letter-spacing: 0.02em; }
 
 .nav-btn.active {
   color: var(--accent);

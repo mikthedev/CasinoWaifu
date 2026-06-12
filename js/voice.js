@@ -462,6 +462,20 @@
         if (!userSpeaking) emit("voice:listening:stop");
         break;
 
+      // User speech transcript from Inworld — used for intent detection (betting, etc.)
+      case "conversation.item.input_audio_transcription.completed":
+        if (msg.transcript) {
+          emit("voice:transcript", { text: msg.transcript, role: "user" });
+        }
+        break;
+
+      // Also handle partial user transcript if Inworld sends it
+      case "input_audio_buffer.speech_transcription.delta":
+        if (msg.delta) {
+          emit("voice:transcript", { text: msg.delta, role: "user", partial: true });
+        }
+        break;
+
       default:
         break;
     }

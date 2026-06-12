@@ -1141,11 +1141,6 @@ body.casino-mode {
 .hc-pill.hc-green { background: var(--green); color: #fff; }
 .hc-hint { font-size: 10px; color: var(--muted); padding: 4px; align-self: center; }
 
-.roulette-bets-row2 { margin-top: 0; }
-.roulette-bets-row2 .seg-btn {
-  font-size: 10px;
-  padding: 7px 3px;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    CRASH: HISTORY STRIP + LIVE PLAYERS + SESSION STATS

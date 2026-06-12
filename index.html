@@ -70,13 +70,6 @@
                   <button class="seg-btn" data-bet="odd">Odd</button>
                   <button class="seg-btn number" data-bet="number">#</button>
                 </div>
-                <div class="seg-control bet-types roulette-bets-row2">
-                  <button class="seg-btn" data-bet="low">1–18</button>
-                  <button class="seg-btn" data-bet="high">19–36</button>
-                  <button class="seg-btn" data-bet="dozen1">1st 12</button>
-                  <button class="seg-btn" data-bet="dozen2">2nd 12</button>
-                  <button class="seg-btn" data-bet="dozen3">3rd 12</button>
-                </div>
                 <div class="number-wrap" id="number-wrap">
                   <input id="bet-number" type="number" min="0" max="36" value="7" inputmode="numeric" aria-label="Bet number" />
                   <span class="hint">35× payout</span>
@@ -275,18 +268,23 @@
                 <button class="sport-tab locked" data-sport="basketball" disabled>🏀 Basketball</button>
               </div>
 
-              <!-- Tournament filter tabs (populated by sports.js) -->
-              <div class="sports-tournament-tabs" id="sports-tournament-tabs"></div>
+              <!-- Scrollable body: tournament tabs + bet-type tabs + matches -->
+              <div class="sports-scroll-area">
 
-              <!-- Bet type tabs -->
-              <div class="sports-bet-type-tabs" id="sports-bet-type-tabs">
-                <button class="bet-type-tab active" data-bet-type="winner">Match Winner</button>
-                <button class="bet-type-tab" data-bet-type="handicap">+1.5 Sets</button>
-                <button class="bet-type-tab" data-bet-type="ou">Over/Under</button>
+                <!-- Tournament filter tabs (populated by sports.js) -->
+                <div class="sports-tournament-tabs" id="sports-tournament-tabs"></div>
+
+                <!-- Bet type tabs -->
+                <div class="sports-bet-type-tabs" id="sports-bet-type-tabs">
+                  <button class="bet-type-tab active" data-bet-type="winner">Match Winner</button>
+                  <button class="bet-type-tab" data-bet-type="handicap">+1.5 Sets</button>
+                  <button class="bet-type-tab" data-bet-type="ou">Over/Under</button>
+                </div>
+
+                <!-- Match cards list — populated by sports.js -->
+                <div class="sports-matches" id="sports-matches"></div>
+
               </div>
-
-              <!-- Match cards list — populated by sports.js -->
-              <div class="sports-matches" id="sports-matches"></div>
 
               <!-- Yuki slot -->
               <div class="yuki-slot yuki-slot--bar" data-game="sports"></div>

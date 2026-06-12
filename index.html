@@ -10,13 +10,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/game.css" />
     <link rel="stylesheet" href="css/widget.css" />
+    <link rel="stylesheet" href="css/sports.css" />
   </head>
   <body class="casino-mode">
 
     <div class="desktop-note">
       <div class="phone-icon">📱</div>
       <h2>Lucky Casino</h2>
-      <p>4 games · Yuki AI companion · Inworld voice</p>
+      <p>5 games · Sports betting · Yuki AI companion</p>
       <p class="desktop-link"><a href="companion.html">Talk with Yuki only →</a></p>
     </div>
 
@@ -203,6 +204,48 @@
             </div>
           </section>
 
+          <!-- ── SPORTS ────────────────────────────────────────────── -->
+          <section class="game-screen" data-screen="sports" aria-label="Sports Betting">
+            <div class="screen-inner sports-screen">
+
+              <!-- Sport filter tabs -->
+              <div class="sports-tabs">
+                <button class="sport-tab active" data-sport="tennis">🎾 Tennis</button>
+              </div>
+
+              <!-- Match cards list — populated by sports.js -->
+              <div class="sports-matches" id="sports-matches"></div>
+
+              <!-- Yuki slot -->
+              <div class="yuki-slot yuki-slot--bar" data-game="sports"></div>
+
+              <!-- Bet slip (slides up on selection) -->
+              <div class="bet-slip" id="bet-slip">
+                <div class="bet-slip-inner">
+                  <div class="bet-slip-header">
+                    <span class="bet-slip-title">Bet Slip</span>
+                    <button class="bet-slip-clear" id="bet-slip-clear">✕</button>
+                  </div>
+                  <div class="bet-slip-selection" id="bet-slip-selection"></div>
+                  <div class="bet-slip-bottom">
+                    <div class="chip-row chips bet-slip-chips" id="sports-chips">
+                      <button class="chip-pill" data-chip="10">10</button>
+                      <button class="chip-pill active" data-chip="25">25</button>
+                      <button class="chip-pill" data-chip="50">50</button>
+                      <button class="chip-pill" data-chip="100">100</button>
+                    </div>
+                    <div class="bet-returns-row">
+                      <span class="bet-returns-label">Return</span>
+                      <span class="bet-returns-value" id="bet-returns">—</span>
+                    </div>
+                  </div>
+                  <button class="action-btn sports-place-btn" id="sports-place-btn" disabled>PLACE BET</button>
+                </div>
+              </div>
+
+            </div>
+          </section>
+
         </div><!-- /game-screens -->
 
         <!-- ── bottom nav ──────────────────────────────────────────────── -->
@@ -222,6 +265,10 @@
           <button class="nav-btn" data-goto="slots">
             <span class="nav-icon">🎰</span>
             <span class="nav-label">Slots</span>
+          </button>
+          <button class="nav-btn" data-goto="sports">
+            <span class="nav-icon">🎾</span>
+            <span class="nav-label">Sports</span>
           </button>
         </nav>
 
@@ -246,5 +293,6 @@
     <script src="js/blackjack.js"></script>
     <script src="js/crash.js"></script>
     <script src="js/slots.js"></script>
+    <script src="js/sports.js"></script>
   </body>
 </html>

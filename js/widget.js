@@ -443,13 +443,26 @@
         showReaction(reaction, key, payload);
       });
 
+      // Sports betting events
+      bus.on("sports:event", ({ type, payload }) => {
+        const key = type === "WIN" ? "WIN" : "LOSE";
+        const reaction = window.Character.reactToOutcome(key, payload);
+        showReaction(reaction, key, payload);
+      });
+
+      // Widget reaction passthrough (from sports.js)
+      bus.on("widget:reaction", ({ reaction, type, payload }) => {
+        showReaction(reaction, type, payload);
+      });
+
       // Game switch — greet on arrival
       bus.on("casino:game", ({ game }) => {
         const greets = {
-          roulette:  () => showReaction({ emotion: E.HAPPY,    line: "Let's spin~" },   "IDLE", {}),
-          blackjack: () => showReaction({ emotion: E.THINKING, line: "Blackjack!" },    "IDLE", {}),
-          crash:     () => showReaction({ emotion: E.EXCITED,  line: "Don't crash!" },  "IDLE", {}),
-          slots:     () => showReaction({ emotion: E.HAPPY,    line: "Lucky reels~" },  "IDLE", {}),
+          roulette:  () => showReaction({ emotion: E.HAPPY,    line: "Let's spin~" },     "IDLE", {}),
+          blackjack: () => showReaction({ emotion: E.THINKING, line: "Blackjack!" },      "IDLE", {}),
+          crash:     () => showReaction({ emotion: E.EXCITED,  line: "Don't crash!" },    "IDLE", {}),
+          slots:     () => showReaction({ emotion: E.HAPPY,    line: "Lucky reels~" },    "IDLE", {}),
+          sports:    () => showReaction({ emotion: E.EXCITED,  line: "Tennis time! 🎾" }, "IDLE", {}),
         };
         if (greets[game]) greets[game]();
       });
@@ -521,8 +534,38 @@
       if (!isHidden && voiceActive && micEnabled && !inGameReaction()) setEmotion(E.LISTENING);
     });
 
-    // No transcript bubbles in casino visible mode
-    bus.on("voice:transcript", () => {});
+    // Process user speech for betting intents (no bubbles in casino visible mode)
+    bus.on("voice:transcript", ({ text, role } = {}) => {
+      if (role !== "user" || !text || isCompanion) return;
+      const t = text.toLowerCase();
+
+      // Bet intent — anywhere in the app
+      const hasBetWord = /\b(bet|betting|wager|place a bet|sports bet|make a bet)\b/.test(t);
+      const hasNegation = /\b(no|don't|not|cancel|stop)\b/.test(t);
+      if (hasBetWord && !hasNegation && window.Sports) {
+        if (window.Casino?.activeGame !== "sports") {
+          window.Sports.handleBetIntent();
+        }
+        return;
+      }
+
+      // Best-player intent — only on sports page
+      if (window.Casino?.activeGame === "sports" && window.Sports) {
+        const isBestQuery = /\b(best|recommend|top|who|suggest|favorite|favourite|pick|choice)\b/.test(t);
+        const isBetContext = /\b(bet|player|win|pick|odds|choice)\b/.test(t);
+        if (isBestQuery && isBetContext && window.Sports.flowState === "idle") {
+          window.Sports.handleBestPlayerIntent();
+          return;
+        }
+
+        // Confirm intent — after Yuki has suggested a player
+        const isConfirm = /\b(yes|sure|ok|okay|go ahead|do it|confirm|fill|yep|yeah)\b/.test(t);
+        if (isConfirm && window.Sports.flowState === "awaiting_pick_confirm") {
+          window.Sports.handleConfirmIntent();
+          return;
+        }
+      }
+    });
 
     bus.on("voice:mic:denied", ({ code }) => {
       micEnabled = false;

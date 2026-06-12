@@ -852,6 +852,23 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Generic context injection — any system text → Yuki's context window
+  // ---------------------------------------------------------------------------
+  function sendContext(text) {
+    if (!isTransportOpen() || !sessionReady) return;
+    sendJson({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "system",
+        content: [{ type: "input_text", text }],
+      },
+    });
+    // Prompt a response so Yuki speaks
+    sendJson({ type: "response.create" });
+  }
+
+  // ---------------------------------------------------------------------------
   // Roulette integration — context + spoken reactions when voice is live
   // ---------------------------------------------------------------------------
   function notifyGameEvent(type, payload = {}) {
@@ -1050,6 +1067,7 @@
     isMuted: () => muted,
     notifyGameEvent,
     reactToGameEvent,
+    sendContext,
     requestMic,
   };
 })();

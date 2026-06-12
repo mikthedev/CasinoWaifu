@@ -28,7 +28,7 @@
   }
 
   // ── navigation ────────────────────────────────────────────────────────────
-  const GAME_ORDER = ["roulette", "blackjack", "crash", "slots"];
+  const GAME_ORDER = ["roulette", "blackjack", "crash", "slots", "sports"];
   let _active = "roulette";
 
   const screens   = document.querySelectorAll(".game-screen");
@@ -105,5 +105,5 @@
     init();
   }
 
-  window.Casino = { getBalance, adjustBalance, get activeGame() { return _active; } };
+  window.Casino = { getBalance, adjustBalance, goTo, get activeGame() { return _active; } };
 })();
